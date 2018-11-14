@@ -32,6 +32,12 @@ opt = Option('./config.json')
 
 re_sc = re.compile('[\!@#$%\^&\*\(\)-=\[\]\{\}\.,/\?~\+\'"|]')
 
+useless_token = ['상세', '설명', '참조', '없음', '상품상세']
+def remove_token(name):
+    for token in useless_token:
+        if token in name:
+            return  ''
+    return name
 
 class Reader(object):
     def __init__(self, data_path_list, div, begin_offset, end_offset):
@@ -206,9 +212,37 @@ class Data:
             return [None] * 2
         Y = to_categorical(Y, len(self.y_vocab))
 
-        product = h['product'][i]
-        product = re_sc.sub(' ', product).strip().split()
-        words = [w.strip() for w in product]
+        ori_product = h['product'][i]
+        ori_product = re_sc.sub(' ', ori_product).strip()
+
+        brand = h['brand'][i]
+        brand = re_sc.sub(' ', brand).strip()
+
+        maker = h['maker'][i]
+        maker = re_sc.sub(' ', maker).strip()
+
+        model = h['model'][i]
+        model = re_sc.sub(' ', model).strip()
+
+        def merge_brand_maker(maker, brand, model, product):
+            maker = remove_token(maker)
+            brand = remove_token(brand)
+            model = remove_token(model)
+
+            product_tokens = product.split()
+            add_model_token = [token for token in model.split() if token not in product_tokens]
+            product_tokens = add_model_token + product_tokens
+            add_brand_token = [token for token in brand.split() if token not in product_tokens]
+            product_tokens = add_brand_token + product_tokens
+            add_maker_token = [token for token in maker.split() if token not in product_tokens]
+            product_tokens = add_maker_token + product_tokens
+            return ' '.join(product_tokens)
+
+        product = merge_brand_maker(maker, brand, model, ori_product)
+        if (i+1) % 2000 == 0:
+            self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
+
+        words = [w.strip() for w in product.split()]
         words = [w for w in words
                  if len(w) >= opt.min_word_length and len(w) < opt.max_word_length]
         if not words:
