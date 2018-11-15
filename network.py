@@ -26,6 +26,7 @@ from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Ac
 from keras.layers.embeddings import Embedding
 from keras.layers import Bidirectional
 
+from attention import Attention
 from misc import get_logger, Option
 opt = Option('./config.json')
 
@@ -89,7 +90,6 @@ class CNNLSTM:
 
         return model_conv
 
-
 class BiLSTM:
     def __init__(self):
         self.logger = get_logger('bilstm')
@@ -102,6 +102,26 @@ class BiLSTM:
             model = Sequential()
             model.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
             model.add(Bidirectional(LSTM(32), merge_mode=mode))
+            model.add(Dense(512, activation='relu'))
+            model.add(Dense(num_classes, activation=activation))
+            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])
+            model.summary(print_fn=lambda x: self.logger.info(x))
+        return model
+
+
+class AttentionBiLSTM:
+    def __init__(self):
+        self.logger = get_logger('attn-bilstm')
+
+    def get_model(self,num_classes, activation='sigmoid', mode='sum'):
+        max_len = opt.max_len
+        voca_size = opt.unigram_hash_size + 1
+
+        with tf.device('/gpu:0'):
+            model = Sequential()
+            model.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
+            model.add(Bidirectional(LSTM(32, return_sequences=True), merge_mode=mode))
+            model.add(Attention())
             model.add(Dense(512, activation='relu'))
             model.add(Dense(num_classes, activation=activation))
             model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])

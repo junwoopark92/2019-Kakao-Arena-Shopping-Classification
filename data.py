@@ -238,7 +238,7 @@ class Data:
             product_tokens = add_maker_token + product_tokens
             return ' '.join(product_tokens)
 
-        product = merge_brand_maker(maker, brand, model, ori_product)
+        product = merge_brand_maker(maker, brand, model, ori_product).upper()
         if (i+1) % 2000 == 0:
             self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
 

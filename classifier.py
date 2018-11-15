@@ -26,7 +26,7 @@ from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
 
 from misc import get_logger, Option
-from network import TextOnly, CNNLSTM, BiLSTM, top1_acc
+from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, top1_acc
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
@@ -133,7 +133,8 @@ class Classifier():
 
         #textonly = TextOnly()
         #textonly = CNNLSTM()
-        textonly = BiLSTM()
+        #textonly = BiLSTM()
+        textonly = AttentionBiLSTM()
         model = textonly.get_model(self.num_classes, mode='sum')
 
         total_train_samples = train['uni'].shape[0]
