@@ -21,8 +21,10 @@ from keras.layers.merge import dot
 from keras.layers import Dense, Input
 from keras.layers.core import Reshape
 
+from keras.models import Sequential
+from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation
 from keras.layers.embeddings import Embedding
-from keras.layers.core import Dropout, Activation
+from keras.layers import Bidirectional
 
 from misc import get_logger, Option
 opt = Option('./config.json')
@@ -62,5 +64,46 @@ class TextOnly:
             model.compile(loss='binary_crossentropy',
                         optimizer=optm,
                         metrics=[top1_acc])
+            model.summary(print_fn=lambda x: self.logger.info(x))
+        return model
+
+
+class CNNLSTM:
+    def __init__(self):
+        self.logger = get_logger('cnn-lstm')
+
+    def get_model(self, num_classes, activation='sigmoid'):
+        max_len = opt.max_len
+        voca_size = opt.unigram_hash_size + 1
+
+        with tf.device('/gpu:0'):
+            model_conv = Sequential()
+            model_conv.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
+            model_conv.add(Dropout(0.5))
+            model_conv.add(Conv1D(64, 5, activation='relu'))
+            model_conv.add(MaxPooling1D(pool_size=4))
+            model_conv.add(LSTM(32))
+            model_conv.add(Dense(num_classes, activation=activation))
+            model_conv.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])
+            model_conv.summary(print_fn=lambda x: self.logger.info(x))
+
+        return model_conv
+
+
+class BiLSTM:
+    def __init__(self):
+        self.logger = get_logger('bilstm')
+
+    def get_model(self,num_classes, activation='sigmoid', mode='sum'):
+        max_len = opt.max_len
+        voca_size = opt.unigram_hash_size + 1
+
+        with tf.device('/gpu:0'):
+            model = Sequential()
+            model.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
+            model.add(Bidirectional(LSTM(32), merge_mode=mode))
+            model.add(Dense(512, activation='relu'))
+            model.add(Dense(num_classes, activation=activation))
+            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model

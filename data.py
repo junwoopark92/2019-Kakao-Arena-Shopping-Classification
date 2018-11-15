@@ -248,20 +248,16 @@ class Data:
         if not words:
             return [None] * 2
 
-        x = [hash(w) % opt.unigram_hash_size + 1 for w in words]
-        xv = Counter(x).most_common(opt.max_len)
+        wx = [hash(w) % opt.unigram_hash_size + 1 for w in words][:opt.max_len]
 
         x = np.zeros(opt.max_len, dtype=np.float32)
-        v = np.zeros(opt.max_len, dtype=np.int32)
-        for i in range(len(xv)):
-            x[i] = xv[i][0]
-            v[i] = xv[i][1]
-        return Y, (x, v)
+        for i in range(len(wx)):
+            x[i] = wx[i]
+        return Y, x
 
     def create_dataset(self, g, size, num_classes):
         shape = (size, opt.max_len)
         g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
-        g.create_dataset('w_uni', shape, chunks=True, dtype=np.float32)
         g.create_dataset('cate', (size, num_classes), chunks=True, dtype=np.int32)
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
@@ -269,7 +265,6 @@ class Data:
         chunk_shape = (chunk_size, opt.max_len)
         chunk = {}
         chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
-        chunk['w_uni'] = np.zeros(shape=chunk_shape, dtype=np.float32)
         chunk['cate'] = np.zeros(shape=(chunk_size, num_classes), dtype=np.int32)
         chunk['pid'] = []
         chunk['num'] = 0
@@ -278,7 +273,6 @@ class Data:
     def copy_chunk(self, dataset, chunk, offset, with_pid_field=False):
         num = chunk['num']
         dataset['uni'][offset:offset + num, :] = chunk['uni'][:num]
-        dataset['w_uni'][offset:offset + num, :] = chunk['w_uni'][:num]
         dataset['cate'][offset:offset + num] = chunk['cate'][:num]
         if with_pid_field:
             dataset['pid'][offset:offset + num] = chunk['pid'][:num]
@@ -287,7 +281,6 @@ class Data:
         num = B['cate'].shape[0]
         y_num = B['cate'].shape[1]
         A['uni'][offset:offset + num, :] = B['uni'][:num]
-        A['w_uni'][offset:offset + num, :] = B['w_uni'][:num]
         A['cate'][offset:offset + num, y_offset:y_offset + y_num] = B['cate'][:num]
         if with_pid_field:
             A['pid'][offset:offset + num] = B['pid'][:num]
@@ -358,21 +351,19 @@ class Data:
             self.logger.info('prcessing %s ...' % path)
             data = list(enumerate(cPickle.loads(open(path).read())))
             np.random.shuffle(data)
-            for data_idx, (pid, y, vw) in data:
+            for data_idx, (pid, y, x) in data:
                 if y is None:
                     continue
-                v, w = vw
                 is_train = train_indices[sample_idx + data_idx]
                 if all_dev:
                     is_train = False
                 if all_train:
                     is_train = True
-                if v is None:
+                if x is None:
                     continue
                 c = chunk['train'] if is_train else chunk['dev']
                 idx = c['num']
-                c['uni'][idx] = v
-                c['w_uni'][idx] = w
+                c['uni'][idx] = x
                 c['cate'][idx] = y
                 c['num'] += 1
                 if not is_train:
@@ -395,7 +386,6 @@ class Data:
             size = num_samples[div]
             shape = (size, opt.max_len)
             ds['uni'].resize(shape)
-            ds['w_uni'].resize(shape)
             ds['cate'].resize((size, len(self.y_vocab)))
 
         data_fout.close()
