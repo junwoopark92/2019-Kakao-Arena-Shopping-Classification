@@ -25,13 +25,14 @@ import numpy as np
 from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
 
+from attention import Attention
 from misc import get_logger, Option
 from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, top1_acc
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = ['../dev.chunk.01']
-
+TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
 class Classifier():
     def __init__(self):
@@ -55,9 +56,12 @@ class Classifier():
             inv_cate1[d] = {v: k for k, v in cate1[d].iteritems()}
         return inv_cate1
 
-    def write_prediction_result(self, data, pred_y, meta, out_path, readable):
+    def write_prediction_result(self, data, pred_y, meta, out_path, readable, istrain=False):
         pid_order = []
-        for data_path in DEV_DATA_LIST:
+        dev_data_list = DEV_DATA_LIST
+        if istrain:
+            dev_data_list = TRAIN_DATA_LIST
+        for data_path in dev_data_list:
             h = h5py.File(data_path, 'r')['dev']
             pid_order.extend(h['pid'][::])
 
@@ -96,6 +100,7 @@ class Classifier():
         model = load_model(model_fname,
                            custom_objects={'top1_acc': top1_acc})
 
+        istrain = test_root.split('/')[-1] == 'train'
         test_path = os.path.join(test_root, 'data.h5py')
         test_data = h5py.File(test_path, 'r')
 
@@ -109,7 +114,7 @@ class Classifier():
                                          verbose=1)
         self.write_prediction_result(test, pred_y, meta, out_path, readable=readable)
 
-    def train(self, data_root, out_dir):
+    def train(self, data_root, out_dir, resume=False):
         data_path = os.path.join(data_root, 'data.h5py')
         meta_path = os.path.join(data_root, 'meta')
         data = h5py.File(data_path, 'r')
@@ -131,11 +136,17 @@ class Classifier():
         checkpoint = ModelCheckpoint(self.weight_fname, monitor='val_loss',
                                      save_best_only=True, mode='min', period=10)
 
-        #textonly = TextOnly()
-        #textonly = CNNLSTM()
-        #textonly = BiLSTM()
-        textonly = AttentionBiLSTM()
-        model = textonly.get_model(self.num_classes, mode='sum')
+        model = None
+        if not resume:
+            #textonly = TextOnly()
+            #textonly = CNNLSTM()
+            #textonly = BiLSTM()
+            textonly = AttentionBiLSTM()
+            model = textonly.get_model(self.num_classes, mode='sum')
+        else:
+            model_fname = os.path.join(out_dir, 'model.h5')
+            model = load_model(model_fname, custom_objects={'top1_acc':top1_acc,
+                                                            'Attention':Attention})
 
         total_train_samples = train['uni'].shape[0]
         train_gen = self.get_sample_generator(train,
