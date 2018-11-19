@@ -111,7 +111,8 @@ class Classifier():
         pred_y = model.predict_generator(test_gen,
                                          steps=steps,
                                          workers=opt.num_predict_workers,
-                                         verbose=1)
+                                         verbose=1,
+                                         istrain=istrain)
         self.write_prediction_result(test, pred_y, meta, out_path, readable=readable)
 
     def train(self, data_root, out_dir, resume=False):
