@@ -36,6 +36,9 @@ re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-]')
 tfidfvec = joblib.load('../tfidf.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
 
+if tfdif_size != int(opt.unigram_hash_size):
+    raise Exception
+
 def word2index(word):
     try:
         return tfidfvec.vocabulary_[word.decode('utf8')]
@@ -261,7 +264,7 @@ class Data:
 
         wx = [word2index(w) for w in words][:opt.max_len]
 
-        x = np.zeros(opt.max_len, dtype=np.float32)
+        x = np.array([int(opt.unigram_hash_size)]*opt.max_len, dtype=np.float32)
         for i in range(len(wx)):
             x[i] = wx[i]
         return Y, x
