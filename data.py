@@ -27,16 +27,27 @@ import h5py
 import numpy as np
 from keras.utils.np_utils import to_categorical
 
+from sklearn.externals import joblib
 from misc import get_logger, Option
 opt = Option('./config.json')
 
 re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-]')
 
+tfidfvec = joblib.load('../tfidf.vec')
+tfdif_size = len(tfidfvec.vocabulary_)
+
+def word2index(word):
+    try:
+        return tfidfvec.vocabulary_[word.decode('utf8')]
+    except Exception as e:
+        #print type(e)
+        return tfdif_size
+
 useless_token = ['상세', '설명', '참조', '없음', '상품상세']
 def remove_token(name):
     for token in useless_token:
         if token in name:
-            return  ''
+            return ''
     return name
 
 class Reader(object):
@@ -238,7 +249,7 @@ class Data:
             product_tokens = add_maker_token + product_tokens
             return ' '.join(product_tokens)
 
-        product = merge_brand_maker(maker, brand, model, ori_product).upper()
+        product = merge_brand_maker(maker, brand, model, ori_product).lower()
         if (i+1) % 2000 == 0:
             self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
 
@@ -248,7 +259,7 @@ class Data:
         if not words:
             return [None] * 2
 
-        wx = [hash(w) % opt.unigram_hash_size + 1 for w in words][:opt.max_len]
+        wx = [word2index(w) for w in words][:opt.max_len]
 
         x = np.zeros(opt.max_len, dtype=np.float32)
         for i in range(len(wx)):
