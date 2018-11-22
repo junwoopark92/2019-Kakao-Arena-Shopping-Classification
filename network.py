@@ -120,9 +120,11 @@ class AttentionBiLSTM:
         with tf.device('/gpu:0'):
             model = Sequential()
             model.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
+            model.add(Dropout(0.5))
             model.add(Bidirectional(LSTM(32, return_sequences=True), merge_mode=mode))
             model.add(Attention())
-            model.add(Dense(512, activation='relu'))
+            model.add(Dense(256, activation='relu'))
+            model.add(Dropout(0.5))
             model.add(Dense(num_classes, activation=activation))
             model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])
             model.summary(print_fn=lambda x: self.logger.info(x))

@@ -30,7 +30,7 @@ from keras.utils.np_utils import to_categorical
 from misc import get_logger, Option
 opt = Option('./config.json')
 
-re_sc = re.compile('[\!@#$%\^&\*\(\)-=\[\]\{\}\.,/\?~\+\'"|]')
+re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-]')
 
 useless_token = ['상세', '설명', '참조', '없음', '상품상세']
 def remove_token(name):
@@ -77,9 +77,9 @@ class Reader(object):
 
     def get_class(self, h, i):
         b = h['bcateid'][i]
-        m = h['mcateid'][i]
-        s = h['scateid'][i]
-        d = h['dcateid'][i]
+        m = -1 #h['mcateid'][i]
+        s = -1 #h['scateid'][i]
+        d = -1 #h['dcateid'][i]
         return '%s>%s>%s>%s' % (b, m, s, d)
 
     def generate(self):
