@@ -16,6 +16,7 @@
 import tensorflow as tf
 
 import keras
+import keras.backend as K
 from keras.models import Model
 from keras.layers.merge import dot
 from keras.layers import Dense, Input
@@ -29,6 +30,41 @@ from keras.layers import Bidirectional
 from attention import Attention
 from misc import get_logger, Option
 opt = Option('./config.json')
+
+def precision(y_true, y_pred):
+    # Calculates the precision
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+
+def recall(y_true, y_pred):
+    # Calculates the recall
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = true_positives / (possible_positives + K.epsilon())
+    return recall
+
+def fbeta_score(y_true, y_pred, beta=1):
+    # Calculates the F score, the weighted harmonic mean of precision and recall.
+
+    if beta < 0:
+        raise ValueError('The lowest choosable beta is zero (only precision).')
+        
+    # If there are no true positives, fix the F score at 0 like sklearn.
+    if K.sum(K.round(K.clip(y_true, 0, 1))) == 0:
+        return 0
+
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
+    bb = beta ** 2
+    fbeta_score = (1 + bb) * (p * r) / (bb * p + r + K.epsilon())
+    return fbeta_score
+
+def fmeasure(y_true, y_pred):
+    # Calculates the f-measure, the harmonic mean of precision and recall.
+    return fbeta_score(y_true, y_pred, beta=1)
 
 
 def top1_acc(x, y):
@@ -125,7 +161,7 @@ class AttentionBiLSTM:
             model.add(Attention())
             model.add(Dense(256, activation='relu'))
             model.add(Dropout(0.5))
-            model.add(Dense(num_classes, activation=activation))
-            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc])
+            model.add(Dense(num_classes, activation='softmax'))
+            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy',fmeasure, recall, precision])
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model
