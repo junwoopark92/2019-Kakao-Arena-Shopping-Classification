@@ -18,6 +18,7 @@ import re
 import sys
 import cPickle
 import traceback
+import time
 from collections import Counter
 from multiprocessing import Pool
 
@@ -35,8 +36,11 @@ re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-]')
 
 tfidfvec = joblib.load('../tfidf.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
+kmeans = joblib.load('../kmeans.model')
+kmeans.verbose = 0
 
 if tfdif_size != int(opt.unigram_hash_size):
+    print tfdif_size, int(opt.unigram_hash_size)
     raise Exception
 
 def word2index(word):
@@ -167,6 +171,7 @@ class Data:
                 for k in _y_vocab.iterkeys():
                     y_vocab.add(k)
             self.y_vocab = {y: idx for idx, y in enumerate(y_vocab)}
+
         except KeyboardInterrupt:
             pool.terminate()
             pool.join()
@@ -188,12 +193,29 @@ class Data:
         self.div = div
         reader = Reader(data_path_list, div, begin_offset, end_offset)
         rets = []
+        img_feats = []
         for pid, label, h, i in reader.generate():
             y, x = self.parse_data(label, h, i)
             if y is None:
                 continue
+            x, img_feat = x[0], x[1]
             rets.append((pid, y, x))
+            img_feats.append(img_feat)
         self.logger.info('sz=%s' % (len(rets)))
+
+        st = time.time()
+        img_feats = np.asarray(img_feats)
+        img_cls_label = kmeans.predict(img_feats)
+        img_one_hots = to_categorical(img_cls_label, kmeans.n_clusters)
+
+        print 'cls predict times: ', round(time.time() - st, 2)
+
+        temp_rets = []
+        for ret, img_one_hot in zip(rets, img_one_hots):
+            temp_rets.append((ret[0], ret[1], (ret[2], img_one_hot)))
+
+        rets = temp_rets
+
         open(out_path, 'w').write(cPickle.dumps(rets, 2))
         self.logger.info('%s ~ %s done. (size: %s)' % (begin_offset, end_offset, end_offset - begin_offset))
 
@@ -263,15 +285,17 @@ class Data:
             return [None] * 2
 
         wx = [word2index(w) for w in words][:opt.max_len]
-
         x = np.array([int(opt.unigram_hash_size)]*opt.max_len, dtype=np.float32)
+
+        img_feat = h['img_feat'][i]
         for i in range(len(wx)):
             x[i] = wx[i]
-        return Y, x
+        return Y, (x, img_feat)
 
     def create_dataset(self, g, size, num_classes):
         shape = (size, opt.max_len)
         g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
+        g.create_dataset('img', (size, kmeans.n_clusters), chunks=True, dtype=np.int32)
         g.create_dataset('cate', (size, num_classes), chunks=True, dtype=np.int32)
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
@@ -279,6 +303,7 @@ class Data:
         chunk_shape = (chunk_size, opt.max_len)
         chunk = {}
         chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
+        chunk['img'] = np.zeros(shape=(chunk_size, kmeans.n_clusters), dtype=np.int32)
         chunk['cate'] = np.zeros(shape=(chunk_size, num_classes), dtype=np.int32)
         chunk['pid'] = []
         chunk['num'] = 0
@@ -287,17 +312,19 @@ class Data:
     def copy_chunk(self, dataset, chunk, offset, with_pid_field=False):
         num = chunk['num']
         dataset['uni'][offset:offset + num, :] = chunk['uni'][:num]
+        dataset['img'][offset:offset + num] = chunk['img'][:num]
         dataset['cate'][offset:offset + num] = chunk['cate'][:num]
         if with_pid_field:
             dataset['pid'][offset:offset + num] = chunk['pid'][:num]
 
-    def copy_bulk(self, A, B, offset, y_offset, with_pid_field=False):
-        num = B['cate'].shape[0]
-        y_num = B['cate'].shape[1]
-        A['uni'][offset:offset + num, :] = B['uni'][:num]
-        A['cate'][offset:offset + num, y_offset:y_offset + y_num] = B['cate'][:num]
-        if with_pid_field:
-            A['pid'][offset:offset + num] = B['pid'][:num]
+    # def copy_bulk(self, A, B, offset, y_offset, with_pid_field=False):
+    #     num = B['cate'].shape[0]
+    #     y_num = B['cate'].shape[1]
+    #     A['uni'][offset:offset + num, :] = B['uni'][:num]
+    #     A['img'][offset:offset + num, y_offset:y_offset + y_num] = B['img'][:num]
+    #     A['cate'][offset:offset + num, y_offset:y_offset + y_num] = B['cate'][:num]
+    #     if with_pid_field:
+    #         A['pid'][offset:offset + num] = B['pid'][:num]
 
     def get_train_indices(self, size, train_ratio):
         train_indices = np.random.rand(size) < train_ratio
@@ -365,6 +392,7 @@ class Data:
             self.logger.info('prcessing %s ...' % path)
             data = list(enumerate(cPickle.loads(open(path).read())))
             np.random.shuffle(data)
+
             for data_idx, (pid, y, x) in data:
                 if y is None:
                     continue
@@ -377,7 +405,8 @@ class Data:
                     continue
                 c = chunk['train'] if is_train else chunk['dev']
                 idx = c['num']
-                c['uni'][idx] = x
+                c['uni'][idx] = x[0]
+                c['img'][idx] = x[1]
                 c['cate'][idx] = y
                 c['num'] += 1
                 if not is_train:
@@ -400,6 +429,7 @@ class Data:
             size = num_samples[div]
             shape = (size, opt.max_len)
             ds['uni'].resize(shape)
+            ds['cate'].resize((size, kmeans.n_clusters))
             ds['cate'].resize((size, len(self.y_vocab)))
 
         data_fout.close()
@@ -412,6 +442,7 @@ class Data:
         self.logger.info('# of samples on dev: %s' % num_samples['dev'])
         self.logger.info('data: %s' % os.path.join(output_dir, 'data.h5py'))
         self.logger.info('meta: %s' % os.path.join(output_dir, 'meta'))
+
 
 if __name__ == '__main__':
     data = Data()

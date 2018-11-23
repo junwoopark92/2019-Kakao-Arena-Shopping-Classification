@@ -23,7 +23,7 @@ from keras.layers import Dense, Input
 from keras.layers.core import Reshape
 
 from keras.models import Sequential
-from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation
+from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation, concatenate
 from keras.layers.embeddings import Embedding
 from keras.layers import Bidirectional
 
@@ -163,5 +163,38 @@ class AttentionBiLSTM:
             model.add(Dropout(0.5))
             model.add(Dense(num_classes, activation='softmax'))
             model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy',fmeasure, recall, precision])
+            model.summary(print_fn=lambda x: self.logger.info(x))
+        return model
+
+
+class AttentionBiLSTMCls:
+    def __init__(self):
+        self.logger = get_logger('attn-bilstm-cls')
+
+    def get_model(self,num_classes, activation='sigmoid', mode='sum'):
+        max_len = opt.max_len
+        voca_size = opt.unigram_hash_size + 1
+
+        with tf.device('/gpu:0'):
+            textmodel = Sequential()
+            textmodel.add(Embedding(voca_size, opt.embd_size, input_length=max_len))
+            textmodel.add(Dropout(0.5))
+            textmodel.add(Bidirectional(LSTM(32, return_sequences=True), merge_mode=mode))
+            textmodel.add(Attention())
+
+            img_model = Sequential()
+            img_model.add(Dense(50, input_shape=(50,),activation='relu'))
+            img_model.add(Dropout(0.5))
+
+            merged_layers = concatenate([textmodel.output, img_model.output])
+            merged_layers = Dropout(0.5)(merged_layers)
+
+            out = Dense(128, activation='relu')(merged_layers)
+            out = Dropout(0.5)(out)
+            out = Dense(num_classes, activation='softmax')(out)
+
+            model = Model([textmodel.input, img_model.input], out)
+
+            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model

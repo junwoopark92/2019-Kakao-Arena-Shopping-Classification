@@ -27,7 +27,7 @@ from keras.callbacks import ModelCheckpoint
 
 from attention import Attention
 from misc import get_logger, Option
-from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, top1_acc
+from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, top1_acc
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
@@ -43,7 +43,7 @@ class Classifier():
         left, limit = 0, ds['uni'].shape[0]
         while True:
             right = min(left + batch_size, limit)
-            X = [ds[t][left:right, :] for t in ['uni']]
+            X = [ds[t][left:right, :] for t in ['uni', 'img']]
             Y = ds['cate'][left:right]
             yield X, Y
             left = right
@@ -142,7 +142,8 @@ class Classifier():
             #textonly = TextOnly()
             #textonly = CNNLSTM()
             #textonly = BiLSTM()
-            textonly = AttentionBiLSTM()
+            #textonly = AttentionBiLSTM()
+            textonly = AttentionBiLSTMCls()
             model = textonly.get_model(self.num_classes, mode='sum')
         else:
             model_fname = os.path.join(out_dir, 'model.h5')
