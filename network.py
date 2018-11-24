@@ -183,15 +183,11 @@ class AttentionBiLSTMCls:
             textmodel.add(Attention())
 
             img_model = Sequential()
-            img_model.add(Dense(50, input_shape=(50,),activation='relu'))
+            img_model.add(Dense(50, input_shape=(50,),activation='tanh'))
             img_model.add(Dropout(0.5))
 
             merged_layers = concatenate([textmodel.output, img_model.output])
-            merged_layers = Dropout(0.5)(merged_layers)
-
-            out = Dense(128, activation='relu')(merged_layers)
-            out = Dropout(0.5)(out)
-            out = Dense(num_classes, activation='softmax')(out)
+            out = Dense(num_classes, activation='softmax')(merged_layers)
 
             model = Model([textmodel.input, img_model.input], out)
 

@@ -205,8 +205,9 @@ class Data:
 
         st = time.time()
         img_feats = np.asarray(img_feats)
-        img_cls_label = kmeans.predict(img_feats)
-        img_one_hots = to_categorical(img_cls_label, kmeans.n_clusters)
+        cls = kmeans.transform(img_feats)
+        img_one_hots = (cls - np.mean(cls))/np.std(cls) 
+	#img_one_hots = to_categorical(img_cls_label, kmeans.n_clusters)
 
         print 'cls predict times: ', round(time.time() - st, 2)
 
@@ -295,7 +296,7 @@ class Data:
     def create_dataset(self, g, size, num_classes):
         shape = (size, opt.max_len)
         g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
-        g.create_dataset('img', (size, kmeans.n_clusters), chunks=True, dtype=np.int32)
+        g.create_dataset('img', (size, kmeans.n_clusters), chunks=True, dtype=np.float32)
         g.create_dataset('cate', (size, num_classes), chunks=True, dtype=np.int32)
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
@@ -303,7 +304,7 @@ class Data:
         chunk_shape = (chunk_size, opt.max_len)
         chunk = {}
         chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
-        chunk['img'] = np.zeros(shape=(chunk_size, kmeans.n_clusters), dtype=np.int32)
+        chunk['img'] = np.zeros(shape=(chunk_size, kmeans.n_clusters), dtype=np.float32)
         chunk['cate'] = np.zeros(shape=(chunk_size, num_classes), dtype=np.int32)
         chunk['pid'] = []
         chunk['num'] = 0
