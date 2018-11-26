@@ -38,6 +38,7 @@ tfidfvec = joblib.load('../tfidf.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
 kmeans = joblib.load('../kmeans.model')
 kmeans.verbose = 0
+imgfeat_size = 2048#kmeans.n_cluster
 
 if tfdif_size != int(opt.unigram_hash_size):
     print tfdif_size, int(opt.unigram_hash_size)
@@ -205,11 +206,12 @@ class Data:
 
         st = time.time()
         img_feats = np.asarray(img_feats)
-        cls = kmeans.transform(img_feats)
-        img_one_hots = (cls - np.mean(cls))/np.std(cls) 
+        #cls = kmeans.transform(img_feats)
+        #img_one_hots = (cls - np.mean(cls))/np.std(cls) 
 	#img_one_hots = to_categorical(img_cls_label, kmeans.n_clusters)
 
-        print 'cls predict times: ', round(time.time() - st, 2)
+        #print 'cls predict times: ', round(time.time() - st, 2)
+	img_one_hots = img_feats
 
         temp_rets = []
         for ret, img_one_hot in zip(rets, img_one_hots):
@@ -296,7 +298,7 @@ class Data:
     def create_dataset(self, g, size, num_classes):
         shape = (size, opt.max_len)
         g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
-        g.create_dataset('img', (size, kmeans.n_clusters), chunks=True, dtype=np.float32)
+        g.create_dataset('img', (size, imgfeat_size), chunks=True, dtype=np.float32)
         g.create_dataset('cate', (size, num_classes), chunks=True, dtype=np.int32)
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
@@ -304,7 +306,7 @@ class Data:
         chunk_shape = (chunk_size, opt.max_len)
         chunk = {}
         chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
-        chunk['img'] = np.zeros(shape=(chunk_size, kmeans.n_clusters), dtype=np.float32)
+        chunk['img'] = np.zeros(shape=(chunk_size, imgfeat_size), dtype=np.float32)
         chunk['cate'] = np.zeros(shape=(chunk_size, num_classes), dtype=np.int32)
         chunk['pid'] = []
         chunk['num'] = 0
@@ -430,7 +432,7 @@ class Data:
             size = num_samples[div]
             shape = (size, opt.max_len)
             ds['uni'].resize(shape)
-            ds['cate'].resize((size, kmeans.n_clusters))
+            ds['img'].resize((size, imgfeat_size))
             ds['cate'].resize((size, len(self.y_vocab)))
 
         data_fout.close()

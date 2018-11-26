@@ -183,14 +183,14 @@ class AttentionBiLSTMCls:
             textmodel.add(Attention())
 
             img_model = Sequential()
-            img_model.add(Dense(50, input_shape=(50,),activation='tanh'))
+            img_model.add(Dense(128, input_shape=(2048,),activation='relu'))
             img_model.add(Dropout(0.5))
 
             merged_layers = concatenate([textmodel.output, img_model.output])
-            out = Dense(num_classes, activation='softmax')(merged_layers)
+            out = Dense(num_classes, activation='sigmoid')(merged_layers)
 
             model = Model([textmodel.input, img_model.input], out)
 
-            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
+            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc, fmeasure, recall, precision])
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model
