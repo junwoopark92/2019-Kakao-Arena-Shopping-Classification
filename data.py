@@ -94,12 +94,31 @@ class Reader(object):
             offset += sz
         return count
 
-    def get_class(self, h, i):
-        b = h['bcateid'][i]
-        m = -1 #h['mcateid'][i]
-        s = -1 #h['scateid'][i]
-        d = -1 #h['dcateid'][i]
-        return '%s>%s>%s>%s' % (b, m, s, d)
+    def get_class(self, h, i, hirachi):
+        if hirachi == 'b':
+            b = h['bcateid'][i]
+            m = -1 #h['mcateid'][i]
+            s = -1 #h['scateid'][i]
+            d = -1 #h['dcateid'][i]
+            return '%s>%s>%s>%s' % (b, m, s, d)
+        if hirachi == 'm':
+            b = -1 #h['bcateid'][i]
+            m = h['mcateid'][i]
+            s = -1 #h['scateid'][i]
+            d = -1 #h['dcateid'][i]
+            return '%s>%s>%s>%s' % (b, m, s, d)
+        if hirachi == 's':
+            b = -1 #h['bcateid'][i]
+            m = -1 #h['mcateid'][i]
+            s = h['scateid'][i]
+            d = -1 #h['dcateid'][i]
+            return '%s>%s>%s>%s' % (b, m, s, d)
+        if hirachi == 'd':
+            b = -1 #h['bcateid'][i]
+            m = -1 #h['mcateid'][i]
+            s = -1 #h['scateid'][i]
+            d = h['dcateid'][i]
+            return '%s>%s>%s>%s' % (b, m, s, d)
 
     def generate(self):
         offset = 0
@@ -114,16 +133,20 @@ class Reader(object):
             for i in range(sz):
                 if not self.is_range(offset + i):
                     continue
-                class_name = self.get_class(h, i)
+                class_name = [self.get_class(h, i, 'b'),
+                              self.get_class(h, i, 'm'),
+                              self.get_class(h, i, 's'),
+                              self.get_class(h, i, 'd')]
+
                 yield h['pid'][i], class_name, h, i
             offset += sz
 
-    def get_y_vocab(self, data_path):
+    def get_y_vocab(self, data_path, hirachi):
         y_vocab = {}
         h = h5py.File(data_path, 'r')[self.div]
         sz = h['pid'].shape[0]
         for i in tqdm.tqdm(range(sz), mininterval=1):
-            class_name = self.get_class(h, i)
+            class_name = self.get_class(h, i, hirachi)
             if class_name not in y_vocab:
                 y_vocab[class_name] = len(y_vocab)
         return y_vocab
@@ -141,9 +164,9 @@ def preprocessing(data):
 
 def build_y_vocab(data):
     try:
-        data_path, div = data
+        data_path, div, hirachi = data
         reader = Reader([], div, None, None)
-        y_vocab = reader.get_y_vocab(data_path)
+        y_vocab = reader.get_y_vocab(data_path, hirachi)
     except Exception:
         raise Exception("".join(traceback.format_exception(*sys.exc_info())))
     return y_vocab
@@ -157,13 +180,18 @@ class Data:
         self.logger = get_logger('data')
 
     def load_y_vocab(self):
-        self.y_vocab = cPickle.loads(open(self.y_vocab_path).read())
+        self.y_vocab = [
+            cPickle.loads(open(self.y_vocab_path+'.b').read()),
+            cPickle.loads(open(self.y_vocab_path+'.m').read()),
+            cPickle.loads(open(self.y_vocab_path+'.s').read()),
+            cPickle.loads(open(self.y_vocab_path+'.d').read())
+        ]
 
-    def build_y_vocab(self):
+    def build_y_vocab(self, hirachi):
         pool = Pool(opt.num_workers)
         try:
             rets = pool.map_async(build_y_vocab,
-                                  [(data_path, 'train')
+                                  [(data_path, 'train', hirachi)
                                    for data_path in opt.train_data_list]).get(99999999)
             pool.close()
             pool.join()
@@ -178,7 +206,7 @@ class Data:
             pool.join()
             raise
         self.logger.info('size of y vocab: %s' % len(self.y_vocab))
-        cPickle.dump(self.y_vocab, open(self.y_vocab_path, 'wb'), 2)
+        cPickle.dump(self.y_vocab, open(self.y_vocab_path+'.'+hirachi, 'wb'), 2)
 
     def _split_data(self, data_path_list, div, chunk_size):
         total = 0
@@ -244,12 +272,24 @@ class Data:
         return num_chunks
 
     def parse_data(self, label, h, i):
-        Y = self.y_vocab.get(label)
-        if Y is None and self.div in ['dev', 'test']:
-            Y = 0
-        if Y is None and self.div != 'test':
+        #print(type(self.y_vocab[0]), label)
+        Y_b = self.y_vocab[0].get(label[0])
+        Y_m = self.y_vocab[1].get(label[1])
+        Y_s = self.y_vocab[2].get(label[2])
+        Y_d = self.y_vocab[3].get(label[3])
+
+        if Y_b is None and self.div in ['dev', 'test']:
+            Y_b = 0
+            Y_m = 0
+            Y_s = 0
+            Y_d = 0
+
+        if Y_b is None and self.div != 'test':
             return [None] * 2
-        Y = to_categorical(Y, len(self.y_vocab))
+        Y_b = to_categorical(Y_b, len(self.y_vocab[0]))
+        Y_m = to_categorical(Y_m, len(self.y_vocab[1]))
+        Y_s = to_categorical(Y_s, len(self.y_vocab[2]))
+        Y_d = to_categorical(Y_d, len(self.y_vocab[3]))
 
         ori_product = h['product'][i]
         ori_product = re_sc.sub(' ', ori_product).strip()
@@ -293,13 +333,16 @@ class Data:
         img_feat = h['img_feat'][i]
         for i in range(len(wx)):
             x[i] = wx[i]
-        return Y, (x, img_feat)
+        return (Y_b, Y_m, Y_s, Y_d), (x, img_feat)
 
     def create_dataset(self, g, size, num_classes):
         shape = (size, opt.max_len)
         g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
         g.create_dataset('img', (size, imgfeat_size), chunks=True, dtype=np.float32)
-        g.create_dataset('cate', (size, num_classes), chunks=True, dtype=np.int32)
+        g.create_dataset('bcate', (size, len(num_classes[0])), chunks=True, dtype=np.int32)
+        g.create_dataset('mcate', (size, len(num_classes[1])), chunks=True, dtype=np.int32)
+        g.create_dataset('scate', (size, len(num_classes[2])), chunks=True, dtype=np.int32)
+        g.create_dataset('dcate', (size, len(num_classes[3])), chunks=True, dtype=np.int32)
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
     def init_chunk(self, chunk_size, num_classes):
@@ -307,7 +350,10 @@ class Data:
         chunk = {}
         chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
         chunk['img'] = np.zeros(shape=(chunk_size, imgfeat_size), dtype=np.float32)
-        chunk['cate'] = np.zeros(shape=(chunk_size, num_classes), dtype=np.int32)
+        chunk['bcate'] = np.zeros(shape=(chunk_size, len(num_classes[0])), dtype=np.int32)
+        chunk['mcate'] = np.zeros(shape=(chunk_size, len(num_classes[1])), dtype=np.int32)
+        chunk['scate'] = np.zeros(shape=(chunk_size, len(num_classes[2])), dtype=np.int32)
+        chunk['dcate'] = np.zeros(shape=(chunk_size, len(num_classes[3])), dtype=np.int32)
         chunk['pid'] = []
         chunk['num'] = 0
         return chunk
@@ -316,7 +362,11 @@ class Data:
         num = chunk['num']
         dataset['uni'][offset:offset + num, :] = chunk['uni'][:num]
         dataset['img'][offset:offset + num] = chunk['img'][:num]
-        dataset['cate'][offset:offset + num] = chunk['cate'][:num]
+        dataset['bcate'][offset:offset + num] = chunk['bcate'][:num]
+        dataset['mcate'][offset:offset + num] = chunk['mcate'][:num]
+        dataset['scate'][offset:offset + num] = chunk['scate'][:num]
+        dataset['dcate'][offset:offset + num] = chunk['dcate'][:num]
+
         if with_pid_field:
             dataset['pid'][offset:offset + num] = chunk['pid'][:num]
 
@@ -378,16 +428,16 @@ class Data:
 
         train = data_fout.create_group('train')
         dev = data_fout.create_group('dev')
-        self.create_dataset(train, train_size, len(self.y_vocab))
-        self.create_dataset(dev, dev_size, len(self.y_vocab))
+        self.create_dataset(train, train_size, self.y_vocab)
+        self.create_dataset(dev, dev_size, self.y_vocab)
         self.logger.info('train_size ~ %s, dev_size ~ %s' % (train_size, dev_size))
 
         sample_idx = 0
         dataset = {'train': train, 'dev': dev}
         num_samples = {'train': 0, 'dev': 0}
         chunk_size = opt.db_chunk_size
-        chunk = {'train': self.init_chunk(chunk_size, len(self.y_vocab)),
-                 'dev': self.init_chunk(chunk_size, len(self.y_vocab))}
+        chunk = {'train': self.init_chunk(chunk_size, self.y_vocab),
+                 'dev': self.init_chunk(chunk_size, self.y_vocab)}
         chunk_order = range(num_input_chunks)
         np.random.shuffle(chunk_order)
         for input_chunk_idx in chunk_order:
@@ -410,7 +460,10 @@ class Data:
                 idx = c['num']
                 c['uni'][idx] = x[0]
                 c['img'][idx] = x[1]
-                c['cate'][idx] = y
+                c['bcate'][idx] = y[0]
+                c['mcate'][idx] = y[1]
+                c['scate'][idx] = y[2]
+                c['dcate'][idx] = y[3]
                 c['num'] += 1
                 if not is_train:
                     c['pid'].append(np.string_(pid))
@@ -419,7 +472,7 @@ class Data:
                         self.copy_chunk(dataset[t], chunk[t], num_samples[t],
                                         with_pid_field=t == 'dev')
                         num_samples[t] += chunk[t]['num']
-                        chunk[t] = self.init_chunk(chunk_size, len(self.y_vocab))
+                        chunk[t] = self.init_chunk(chunk_size, self.y_vocab)
             sample_idx += len(data)
         for t in ['train', 'dev']:
             if chunk[t]['num'] > 0:
@@ -433,7 +486,11 @@ class Data:
             shape = (size, opt.max_len)
             ds['uni'].resize(shape)
             ds['img'].resize((size, imgfeat_size))
-            ds['cate'].resize((size, len(self.y_vocab)))
+            ds['bcate'].resize((size, len(self.y_vocab[0])))
+            ds['mcate'].resize((size, len(self.y_vocab[1])))
+            ds['scate'].resize((size, len(self.y_vocab[2])))
+            ds['dcate'].resize((size, len(self.y_vocab[3])))
+
 
         data_fout.close()
         meta = {'y_vocab': self.y_vocab}

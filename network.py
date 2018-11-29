@@ -28,6 +28,7 @@ from keras.layers.embeddings import Embedding
 from keras.layers import Bidirectional
 
 from attention import Attention
+from keras_self_attention import SeqSelfAttention
 from misc import get_logger, Option
 opt = Option('./config.json')
 
@@ -192,5 +193,51 @@ class AttentionBiLSTMCls:
             model = Model([textmodel.input, img_model.input], out)
 
             model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[top1_acc, fmeasure, recall, precision])
+            model.summary(print_fn=lambda x: self.logger.info(x))
+        return model
+
+
+class MultiTaskAttnImg:
+    def __init__(self):
+        self.logger = get_logger('attn-bilstm-cls')
+
+    def get_model(self, num_classes, activation='sigmoid', mode='sum'):
+        max_len = opt.max_len
+        voca_size = opt.unigram_hash_size + 1
+        with tf.device('/gpu:0'):
+
+            img_model = Sequential()
+            img_model.add(Dense(128, input_shape=(2048,), activation='relu'))
+
+            big_input = Input(shape=(max_len,), name='big_input')
+            big_embd = Embedding(voca_size, opt.embd_size, name='big_embd')
+
+            big_layer = big_embd(big_input)
+            big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
+            big_layer = Attention()(big_layer)
+            big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
+
+            mid_layer = big_embd(big_input)
+            mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
+            mid_layer = Attention()(mid_layer)
+            mid_layer = concatenate([mid_layer, big_out, img_model.output])
+            mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
+
+            s_layer = big_embd(big_input)
+            s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
+            s_layer = Attention()(s_layer)
+            s_layer = concatenate([s_layer, mid_out, img_model.output])
+            s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
+
+            d_layer = big_embd(big_input)
+            d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
+            d_layer = Attention()(d_layer)
+            d_layer = concatenate([d_layer, s_out, img_model.output])
+            d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
+
+            model = Model(inputs=[big_input, img_model.input],
+                          outputs=[big_out, mid_out, s_out, d_out])
+
+            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model

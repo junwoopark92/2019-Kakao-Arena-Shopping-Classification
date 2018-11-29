@@ -27,7 +27,7 @@ from keras.callbacks import ModelCheckpoint
 
 from attention import Attention
 from misc import get_logger, Option
-from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, top1_acc
+from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, top1_acc
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
@@ -44,7 +44,7 @@ class Classifier():
         while True:
             right = min(left + batch_size, limit)
             X = [ds[t][left:right, :] for t in ['uni', 'img']]
-            Y = ds['cate'][left:right]
+            Y = [ds[hirachi+'cate'][left:right] for hirachi in ['b','m','s','d']]
             yield X, Y
             left = right
             if right == limit:
@@ -126,13 +126,13 @@ class Classifier():
             os.makedirs(out_dir)
 
         self.logger.info('# of classes: %s' % len(meta['y_vocab']))
-        self.num_classes = len(meta['y_vocab'])
+        self.num_classes = meta['y_vocab']
 
         train = data['train']
         dev = data['dev']
 
-        self.logger.info('# of train samples: %s' % train['cate'].shape[0])
-        self.logger.info('# of dev samples: %s' % dev['cate'].shape[0])
+        self.logger.info('# of train samples: %s' % train['bcate'].shape[0])
+        self.logger.info('# of dev samples: %s' % dev['bcate'].shape[0])
 
         checkpoint = ModelCheckpoint(self.weight_fname, monitor='val_loss',
                                      save_best_only=True, mode='min', period=10)
@@ -143,7 +143,8 @@ class Classifier():
             #textonly = CNNLSTM()
             #textonly = BiLSTM()
             #textonly = AttentionBiLSTM()
-            textonly = AttentionBiLSTMCls()
+            #textonly = AttentionBiLSTMCls()
+            textonly = MultiTaskAttnImg()
             model = textonly.get_model(self.num_classes, mode='sum')
         else:
             model_fname = os.path.join(out_dir, 'model.h5')
