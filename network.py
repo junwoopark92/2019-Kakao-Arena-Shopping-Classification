@@ -215,24 +215,29 @@ class MultiTaskAttnImg:
             big_layer = big_embd(big_input)
             big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
             big_layer = Attention()(big_layer)
+            big_layer = concatenate([big_layer, img_model.output])
+            big_layer = Dropout(0.5)(big_layer)
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
             mid_layer = big_embd(big_input)
             mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
             mid_layer = Attention()(mid_layer)
             mid_layer = concatenate([mid_layer, big_out, img_model.output])
+            mid_layer = Dropout(0.5)(mid_layer)
             mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
 
             s_layer = big_embd(big_input)
             s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
             s_layer = Attention()(s_layer)
             s_layer = concatenate([s_layer, mid_out, img_model.output])
+            s_layer = Dropout(0.5)(s_layer)
             s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
 
             d_layer = big_embd(big_input)
             d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
             d_layer = Attention()(d_layer)
             d_layer = concatenate([d_layer, s_out, img_model.output])
+            d_layer = Dropout(0.5)(d_layer)
             d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
 
             model = Model(inputs=[big_input, img_model.input],
