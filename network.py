@@ -215,6 +215,7 @@ class MultiTaskAttnImg:
             big_layer = big_embd(big_input)
             big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
             big_layer = Attention()(big_layer)
+            big_layer = concatenate([big_layer, img_model.output])
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
             mid_layer = big_embd(big_input)

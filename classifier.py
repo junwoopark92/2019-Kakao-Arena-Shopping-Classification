@@ -26,12 +26,13 @@ from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
 
 from attention import Attention
+from keras_self_attention import SeqSelfAttention
 from misc import get_logger, Option
-from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, top1_acc
+from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, top1_acc, fmeasure, precision, recall
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
-DEV_DATA_LIST = ['../dev.chunk.01']
+DEV_DATA_LIST = ['../rawdata/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
 class Classifier():
@@ -65,19 +66,46 @@ class Classifier():
             h = h5py.File(data_path, 'r')['dev']
             pid_order.extend(h['pid'][::])
 
-        y2l = {i: s for s, i in meta['y_vocab'].iteritems()}
-        y2l = map(lambda x: x[1], sorted(y2l.items(), key=lambda x: x[0]))
+        y2l_b = {i: s for s, i in meta['y_vocab'][0].iteritems()}
+        y2l_b = map(lambda x: x[1], sorted(y2l_b.items(), key=lambda x: x[0]))
+
+        y2l_m = {i: s for s, i in meta['y_vocab'][1].iteritems()}
+        y2l_m = map(lambda x: x[1], sorted(y2l_m.items(), key=lambda x: x[0]))
+
+        y2l_s = {i: s for s, i in meta['y_vocab'][2].iteritems()}
+        y2l_s= map(lambda x: x[1], sorted(y2l_s.items(), key=lambda x: x[0]))
+
+        y2l_d = {i: s for s, i in meta['y_vocab'][3].iteritems()}
+        y2l_d = map(lambda x: x[1], sorted(y2l_d.items(), key=lambda x: x[0]))
+
+        pred_b = pred_y[0]
+        pred_m = pred_y[1]
+        pred_s = pred_y[2]
+        pred_d = pred_y[3]
+
         inv_cate1 = self.get_inverted_cate1(cate1)
         rets = {}
-        for pid, p in izip(data['pid'], pred_y):
-            y = np.argmax(p)
-            label = y2l[y]
-            tkns = map(int, label.split('>'))
-            b, m, s, d = tkns
-            assert b in inv_cate1['b']
-            assert m in inv_cate1['m']
-            assert s in inv_cate1['s']
-            assert d in inv_cate1['d']
+        for pid, p_b, p_m, p_s, p_d in izip(data['pid'], pred_b, pred_m, pred_s, pred_d):
+            y_b = np.argmax(p_b)
+            y_m = np.argmax(p_m)
+            y_s = np.argmax(p_s)
+            y_d = np.argmax(p_d)
+
+            label_b = y2l_b[y_b]
+            label_m = y2l_m[y_m]
+            label_s = y2l_s[y_s]
+            label_d = y2l_d[y_d]
+
+            #print(label_b, label_m, label_s, label_d)
+
+            b = label_b.split('>')[0]
+            m = label_m.split('>')[1]
+            s = label_s.split('>')[2]
+            d = label_d.split('>')[3]
+            # assert b in inv_cate1['b']
+            # assert m in inv_cate1['m']
+            # assert s in inv_cate1['s']
+            # assert d in inv_cate1['d']
             tpl = '{pid}\t{b}\t{m}\t{s}\t{d}'
             if readable:
                 b = inv_cate1['b'][b]
@@ -98,9 +126,15 @@ class Classifier():
         model_fname = os.path.join(model_root, 'model.h5')
         self.logger.info('# of classes(train): %s' % len(meta['y_vocab']))
         model = load_model(model_fname,
-                           custom_objects={'top1_acc': top1_acc})
+                           custom_objects={'top1_acc': top1_acc,
+                                           'Attention':Attention,
+                                           'SeqSelfAttention':SeqSelfAttention,
+                                           'fmeasure':fmeasure,
+                                           'precision':precision,
+                                           'recall':recall})
 
-        istrain = test_root.split('/')[-1] == 'train'
+        istrain = test_root.split('/')[-2] == 'train'
+        print(istrain, test_root)
         test_path = os.path.join(test_root, 'data.h5py')
         test_data = h5py.File(test_path, 'r')
 
@@ -111,9 +145,8 @@ class Classifier():
         pred_y = model.predict_generator(test_gen,
                                          steps=steps,
                                          workers=opt.num_predict_workers,
-                                         verbose=1,
-                                         istrain=istrain)
-        self.write_prediction_result(test, pred_y, meta, out_path, readable=readable)
+                                         verbose=1,)
+        self.write_prediction_result(test, pred_y, meta, out_path, readable=readable, istrain=istrain)
 
     def train(self, data_root, out_dir, resume=False):
         data_path = os.path.join(data_root, 'data.h5py')
@@ -135,7 +168,7 @@ class Classifier():
         self.logger.info('# of dev samples: %s' % dev['bcate'].shape[0])
 
         checkpoint = ModelCheckpoint(self.weight_fname, monitor='val_loss',
-                                     save_best_only=True, mode='min', period=10)
+                                     save_best_only=True, mode='min', period=1)
 
         model = None
         if not resume:
