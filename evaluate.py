@@ -47,7 +47,6 @@ def evaluate(predict_path, data_path, div, y_vocab_path):
               inv_y_vocab_s[gt_s].split('>')[2],
               inv_y_vocab_d[gt_d].split('>')[3]])
 
-        #print(gt)
         for depth, _p, _g in zip(['b', 'm', 's', 'd'],
                                  [b, m, s, d],
                                  gt):
