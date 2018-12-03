@@ -28,7 +28,8 @@ from keras.callbacks import ModelCheckpoint
 from attention import Attention
 from keras_self_attention import SeqSelfAttention
 from misc import get_logger, Option
-from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, top1_acc, fmeasure, precision, recall
+from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, \
+    top1_acc, fmeasure, precision, recall, masked_loss_function_d, masked_loss_function_s
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
@@ -131,8 +132,9 @@ class Classifier():
                                            'SeqSelfAttention':SeqSelfAttention,
                                            'fmeasure':fmeasure,
                                            'precision':precision,
-                                           'recall':recall})
-
+                                           'recall':recall,
+                                           'masked_loss_function_d':masked_loss_function_d,
+                                           'masked_loss_function_s':masked_loss_function_s})
         istrain = test_root.split('/')[-2] == 'train'
         print(istrain, test_root)
         test_path = os.path.join(test_root, 'data.h5py')
@@ -182,7 +184,13 @@ class Classifier():
         else:
             model_fname = os.path.join(out_dir, 'model.h5')
             model = load_model(model_fname, custom_objects={'top1_acc':top1_acc,
-                                                            'Attention':Attention})
+                                                            'Attention':Attention,
+                                                            'SeqSelfAttention':SeqSelfAttention,
+                                                            'fmeasure':fmeasure,
+                                                            'precision':precision,
+                                                            'recall':recall,
+                                                            'masked_loss_function_d':masked_loss_function_d,
+                                                            'masked_loss_function_s':masked_loss_function_s})
 
         total_train_samples = train['uni'].shape[0]
         train_gen = self.get_sample_generator(train,

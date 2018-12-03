@@ -30,7 +30,39 @@ from keras.layers import Bidirectional
 from attention import Attention
 from keras_self_attention import SeqSelfAttention
 from misc import get_logger, Option
+import os
+import cPickle
+import numpy as np
+
 opt = Option('./config.json')
+meta_path = os.path.join('./data/train', 'meta')
+meta = cPickle.loads(open(meta_path).read())
+vocab_s = meta['y_vocab'][2]
+vocab_d = meta['y_vocab'][3]
+batchsize = int(opt.batch_size)
+
+print len(vocab_s), vocab_s['-1>-1>-1>-1']
+print len(vocab_d), vocab_d['-1>-1>-1>-1']
+
+mask_value_s = np.zeros(shape=(len(vocab_s)), dtype=np.int)
+mask_value_d = np.zeros(shape=(len(vocab_d)), dtype=np.int)
+mask_value_s[vocab_s['-1>-1>-1>-1']] = 1
+mask_value_d[vocab_d['-1>-1>-1>-1']] = 1
+
+print np.argmax(mask_value_s), np.argmax(mask_value_d)
+
+
+def masked_loss_function_s(y_true, y_pred):
+    mask = K.max(K.cast(K.not_equal(y_true, mask_value_s), K.floatx()), axis=1)
+    loss = K.categorical_crossentropy(y_true, y_pred) * mask * batchsize / K.sum(mask)
+    return loss
+
+
+def masked_loss_function_d(y_true, y_pred):
+    mask = K.max(K.cast(K.not_equal(y_true, mask_value_d), K.floatx()), axis=1)
+    loss = K.categorical_crossentropy(y_true, y_pred) * mask * batchsize / K.sum(mask)
+    return loss
+
 
 def precision(y_true, y_pred):
     # Calculates the precision
@@ -243,6 +275,12 @@ class MultiTaskAttnImg:
             model = Model(inputs=[big_input, img_model.input],
                           outputs=[big_out, mid_out, s_out, d_out])
 
-            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
+            # model.compile(loss='categorical_crossentropy',
+            #               optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
+
+            model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy',
+                                masked_loss_function_s, masked_loss_function_d],
+                          optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
+
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model
