@@ -18,8 +18,8 @@ import tensorflow as tf
 import keras
 import keras.backend as K
 from keras.models import Model
-from keras.layers.merge import dot
-from keras.layers import Dense, Input
+from keras.layers.merge import dot, Multiply
+from keras.layers import Dense, Input, merge
 from keras.layers.core import Reshape
 
 from keras.models import Sequential
@@ -238,41 +238,62 @@ class MultiTaskAttnImg:
         voca_size = opt.unigram_hash_size + 1
         with tf.device('/gpu:0'):
 
-            img_model = Sequential()
-            img_model.add(Dense(128, input_shape=(2048,), activation='relu'))
+            img_input = Input((2048,))
+            #img_model = Sequential() 
+            #img_model.add(Dense(128, input_shape=(2048,), activation='relu'))
+            #big_attn_prob = Dense(2048, activation='softmax')(img_input)
+            #big_attn = Multiply()([img_input, big_attn_prob])
+            big_attn = Dense(128, activation='relu')(img_input)
+           
+            #mid_attn_prob = Dense(2048, activation='softmax')(img_input)
+            #mid_attn = Multiply()([img_input, mid_attn_prob])
+            mid_attn = Dense(128, activation='relu')(img_input)
 
+            
+            #s_attn_prob = Dense(2048, activation='softmax')(img_input)
+            #s_attn = Multiply()([img_input, s_attn_prob])
+            s_attn = Dense(128, activation='relu')(img_input)
+            
+            #d_attn_prob = Dense(2048, activation='softmax')(img_input)
+            #d_attn = Multiply()([img_input, d_attn_prob])
+            d_attn = Dense(128, activation='relu')(img_input)
+            
             big_input = Input(shape=(max_len,), name='big_input')
             big_embd = Embedding(voca_size, opt.embd_size, name='big_embd')
 
             big_layer = big_embd(big_input)
             big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
+            big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
             big_layer = Attention()(big_layer)
-            big_layer = concatenate([big_layer, img_model.output])
+            big_layer = concatenate([big_layer, big_attn])
             big_layer = Dropout(0.5)(big_layer)
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
             mid_layer = big_embd(big_input)
             mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
+            mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
             mid_layer = Attention()(mid_layer)
-            mid_layer = concatenate([mid_layer, big_out, img_model.output])
+            mid_layer = concatenate([mid_layer, big_out, mid_attn])
             mid_layer = Dropout(0.5)(mid_layer)
             mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
 
             s_layer = big_embd(big_input)
             s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
+            s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
             s_layer = Attention()(s_layer)
-            s_layer = concatenate([s_layer, mid_out, img_model.output])
+            s_layer = concatenate([s_layer, mid_out, s_attn])
             s_layer = Dropout(0.5)(s_layer)
             s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
 
             d_layer = big_embd(big_input)
             d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
+            d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
             d_layer = Attention()(d_layer)
-            d_layer = concatenate([d_layer, s_out, img_model.output])
+            d_layer = concatenate([d_layer, s_out, d_attn])
             d_layer = Dropout(0.5)(d_layer)
             d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
 
-            model = Model(inputs=[big_input, img_model.input],
+            model = Model(inputs=[big_input, img_input],
                           outputs=[big_out, mid_out, s_out, d_out])
 
             # model.compile(loss='categorical_crossentropy',

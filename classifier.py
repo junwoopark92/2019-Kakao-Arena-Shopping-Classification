@@ -33,7 +33,7 @@ from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMC
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
-DEV_DATA_LIST = opt.test_data_list#['/ssd2/dataset/dev.chunk.01']
+DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
 class Classifier():
