@@ -33,6 +33,7 @@ from misc import get_logger, Option
 import os
 import cPickle
 import numpy as np
+from sklearn.externals import joblib
 
 opt = Option('./config.json')
 meta_path = os.path.join('./data/train', 'meta')
@@ -232,10 +233,11 @@ class AttentionBiLSTMCls:
 class MultiTaskAttnImg:
     def __init__(self):
         self.logger = get_logger('attn-bilstm-cls')
+        self.embed_matrix = joblib.load('../embed_matrix.np')
 
     def get_model(self, num_classes, activation='sigmoid', mode='sum'):
         max_len = opt.max_len
-        voca_size = opt.unigram_hash_size + 1
+        voca_size = opt.unigram_hash_size# + 1
         with tf.device('/gpu:0'):
 
             img_input = Input((2048,))
@@ -259,7 +261,8 @@ class MultiTaskAttnImg:
             d_attn = Dense(128, activation='relu')(img_input)
             
             big_input = Input(shape=(max_len,), name='big_input')
-            big_embd = Embedding(voca_size, opt.embd_size, name='big_embd')
+            big_embd = Embedding(voca_size, opt.embd_size,
+                                 weights=[self.embed_matrix], name='big_embd', trainable=True)
 
             big_layer = big_embd(big_input)
             big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
