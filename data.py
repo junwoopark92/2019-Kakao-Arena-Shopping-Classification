@@ -32,13 +32,13 @@ from sklearn.externals import joblib
 from misc import get_logger, Option
 opt = Option('./config.json')
 
-re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-]')
+re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-:]')
 
-tfidfvec = joblib.load('../tfidf.vec')
+tfidfvec = joblib.load('../tfidf20.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
-
-word_dict = joblib.load('../word_dict.dict')
-word_dict_size = len(word_dict)
+word_dict_size = tfdif_size
+# word_dict = joblib.load('../word_dict.dict')
+# word_dict_size = len(word_dict)
 
 kmeans = joblib.load('../kmeans.model')
 kmeans.verbose = 0
@@ -51,11 +51,10 @@ if tfdif_size != int(opt.unigram_hash_size) or word_dict_size != int(opt.unigram
 
 def word2index(word):
     try:
-        return word_dict[word.decode('utf8')]
-        #return tfidfvec.vocabulary_[word.decode('utf8')]
+        #return word_dict[word.decode('utf8')]
+        return tfidfvec.vocabulary_[word.decode('utf8')]
     except Exception as e:
-        #print type(e)
-        return word_dict['UNK']
+        return tfdif_size
 
 useless_token = ['상세', '설명', '참조', '없음', '상품상세']
 def remove_token(name):
@@ -334,7 +333,7 @@ class Data:
             return [None] * 2
 
         wx = [word2index(w) for w in words][:opt.max_len]
-        x = np.array([int(word_dict['<pad>'])]*opt.max_len, dtype=np.float32)
+        x = np.array([opt.unigram_hash_size + 1]*opt.max_len, dtype=np.float32)
 
         img_feat = h['img_feat'][i]
         for i in range(len(wx)):

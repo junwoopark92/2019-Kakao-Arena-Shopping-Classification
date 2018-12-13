@@ -308,3 +308,88 @@ class MultiTaskAttnImg:
 
             model.summary(print_fn=lambda x: self.logger.info(x))
         return model
+
+
+class MultiTaskAttnWord2vec:
+    def __init__(self):
+        self.logger = get_logger('attn-bilstm-cls')
+        self.embed_matrix = joblib.load('../embed_matrix.np')
+        self.voca_size = opt.unigram_hash_size + 2
+        self.big_embd = Embedding(self.voca_size, opt.embd_size, name='shared_embed', trainable=True)
+
+    def get_word2vec_model(self):
+        with tf.device('/gpu:0'):
+            input_target = Input((1,))
+            input_context = Input((1,))
+
+            target = self.big_embd(input_target)
+            target = Reshape((opt.embd_size, 1))(target)
+            context = self.big_embd(input_context)
+            context = Reshape((opt.embd_size, 1))(context)
+
+            # setup a cosine similarity operation which will be output in a secondary model
+            similarity = merge.dot([target, context], axes=0, normalize=True)
+
+            # now perform the dot product operation to get a similarity measure
+            dot_product = merge.dot([target, context], axes=1)
+            dot_product = Reshape((1,))(dot_product)
+            # add the sigmoid output layer
+            output = Dense(1, activation='sigmoid')(dot_product)
+            # create the primary training model
+            model = Model(input=[input_target, input_context], output=output)
+            model.compile(loss='binary_crossentropy', optimizer='rmsprop')
+            model.summary()
+
+            validation_model = Model(input=[input_target, input_context], output=similarity)
+
+            return model, validation_model
+
+    def get_classification_model(self, num_classes, activation='sigmoid', mode='sum'):
+        max_len = opt.max_len
+
+        with tf.device('/gpu:0'):
+            img_input = Input((2048,))
+            big_img = Dense(len(num_classes[0]), activation='relu')(img_input)
+            mid_img = Dense(len(num_classes[1]), activation='relu')(img_input)
+            s_img = Dense(len(num_classes[2]), activation='relu')(img_input)
+            d_img = Dense(len(num_classes[3]), activation='relu')(img_input)
+
+            big_input = Input(shape=(max_len,), name='big_input')
+
+            big_layer = self.big_embd(big_input)
+            big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
+            big_layer = Attention()(big_layer)
+            big_layer = concatenate([big_layer, big_img])
+            big_layer = Dropout(0.5)(big_layer)
+            big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
+
+            mid_layer = self.big_embd(big_input)
+            mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
+            mid_layer = Attention()(mid_layer)
+            mid_layer = concatenate([mid_layer, mid_img])
+            mid_layer = Dropout(0.5)(mid_layer)
+            mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
+
+            s_layer = self.big_embd(big_input)
+            s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
+            s_layer = Attention()(s_layer)
+            s_layer = concatenate([s_layer, s_img])
+            s_layer = Dropout(0.5)(s_layer)
+            s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
+
+            d_layer = self.big_embd(big_input)
+            d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
+            d_layer = Attention()(d_layer)
+            d_layer = concatenate([d_layer, d_img, big_img])
+            d_layer = Dropout(0.5)(d_layer)
+            d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
+
+            model = Model(inputs=[big_input, img_input],
+                          outputs=[big_out, mid_out, s_out, d_out])
+
+            model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy',
+                                masked_loss_function_s, masked_loss_function_d],
+                          optimizer='adam', metrics=['accuracy', fmeasure, recall, precision])
+
+            model.summary(print_fn=lambda x: self.logger.info(x))
+        return model

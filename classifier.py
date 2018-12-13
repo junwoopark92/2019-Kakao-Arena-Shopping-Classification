@@ -24,22 +24,29 @@ import numpy as np
 
 from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
+from keras.preprocessing.sequence import skipgrams
+from keras.preprocessing import sequence
 
 from attention import Attention
 from keras_self_attention import SeqSelfAttention
 from misc import get_logger, Option
 from network import TextOnly, CNNLSTM, BiLSTM, AttentionBiLSTM, AttentionBiLSTMCls, MultiTaskAttnImg, \
-    top1_acc, fmeasure, precision, recall, masked_loss_function_d, masked_loss_function_s
+    top1_acc, fmeasure, precision, recall, masked_loss_function_d, masked_loss_function_s, MultiTaskAttnWord2vec
 
+from sklearn.externals import joblib
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
+tfidfvec = joblib.load('../tfidf20.vec')
+tfdif_size = len(tfidfvec.vocabulary_)
+
 class Classifier():
     def __init__(self):
         self.logger = get_logger('Classifier')
         self.num_classes = 0
+        self.sampling_table = sequence.make_sampling_table(opt.unigram_hash_size + 2)
 
     def get_sample_generator(self, ds, batch_size):
         left, limit = 0, ds['uni'].shape[0]
@@ -48,6 +55,30 @@ class Classifier():
             X = [ds[t][left:right, :] for t in ['uni', 'img']]
             Y = [ds[hirachi+'cate'][left:right] for hirachi in ['b','m','s','d']]
             yield X, Y
+            left = right
+            if right == limit:
+                left = 0
+
+    def get_word2vec_generator(self, ds, batch_size):
+        left, limit = 0, ds['uni'].shape[0]
+
+        while True:
+            right = min(left + batch_size, limit)
+            product_names = ds['uni'][left:right, :]
+            couples = []
+            labels = []
+            for name in product_names:
+                length = np.where(name != opt.unigram_hash_size+1)[0].shape[0] + 1
+                couple, label = skipgrams(name[:length], opt.unigram_hash_size + 2,
+                                          window_size=3, sampling_table=self.sampling_table)
+                couples.extend(couple)
+                labels.extend(label)
+
+            word_target, word_context = zip(*couples)
+            word_target = np.array(word_target, dtype="int32")
+            word_context = np.array(word_context, dtype="int32")
+
+            yield [word_target, word_context], labels
             left = right
             if right == limit:
                 left = 0
@@ -172,15 +203,20 @@ class Classifier():
         checkpoint = ModelCheckpoint(self.weight_fname, monitor='val_loss',
                                      save_best_only=True, mode='min', period=1)
 
-        model = None
+        classification_model = None
+        w2v_model = None
+        val_w2v_model = None
         if not resume:
             #textonly = TextOnly()
             #textonly = CNNLSTM()
             #textonly = BiLSTM()
             #textonly = AttentionBiLSTM()
             #textonly = AttentionBiLSTMCls()
-            textonly = MultiTaskAttnImg()
-            model = textonly.get_model(self.num_classes, mode='sum')
+            #textonly = MultiTaskAttnImg()
+            textonly = MultiTaskAttnWord2vec()
+            classification_model = textonly.get_classification_model(self.num_classes, mode='sum')
+            w2v_model, val_w2v_model = textonly.get_word2vec_model()
+
         else:
             model_fname = os.path.join(out_dir, 'model.h5')
             model = load_model(model_fname, custom_objects={'top1_acc':top1_acc,
@@ -192,6 +228,10 @@ class Classifier():
                                                             'masked_loss_function_d':masked_loss_function_d,
                                                             'masked_loss_function_s':masked_loss_function_s})
 
+        dictionary = tfidfvec.vocabulary_
+        reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
+        sim_cb = SimilarityCallback(val_w2v_model, tfdif_size, tfdif_size, 5, reversed_dictionary)
+
         total_train_samples = train['uni'].shape[0]
         train_gen = self.get_sample_generator(train,
                                               batch_size=opt.batch_size)
@@ -202,7 +242,24 @@ class Classifier():
                                             batch_size=opt.batch_size)
         self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        model.fit_generator(generator=train_gen,
+        w2v_train_gen = self.get_word2vec_generator(train,
+                                              batch_size=opt.batch_size)
+        #self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
+
+        w2v_dev_gen = self.get_word2vec_generator(dev,
+                                            batch_size=opt.batch_size)
+        #self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
+
+        w2v_model.fit_generator(w2v_train_gen,
+                                epochs=opt.num_epochs,
+                                steps_per_epoch=self.steps_per_epoch,
+                                shuffle=True)
+
+        sim_cb.run_sim()
+
+        self.logger.info('word2vec model pretrain done')
+
+        classification_model.fit_generator(generator=train_gen,
                             steps_per_epoch=self.steps_per_epoch,
                             epochs=opt.num_epochs,
                             validation_data=dev_gen,
@@ -210,10 +267,42 @@ class Classifier():
                             shuffle=True,
                             callbacks=[checkpoint])
 
-        model.load_weights(self.weight_fname) # loads from checkout point if exists
-        open(self.model_fname + '.json', 'w').write(model.to_json())
-        model.save(self.model_fname + '.h5')
+        classification_model.load_weights(self.weight_fname) # loads from checkout point if exists
+        open(self.model_fname + '.json', 'w').write(classification_model.to_json())
+        classification_model.save(self.model_fname + '.h5')
 
+
+class SimilarityCallback:
+    def __init__(self, val_model, vocab_size, valid_window, valid_size, reverse_dictionary):
+        self.vocab_size = vocab_size
+        self.valid_size = valid_size
+        self.valid_window = valid_window
+        self.reverse_dictionary = reverse_dictionary
+        self.val_model = val_model
+
+    def run_sim(self):
+        for i in range(self.valid_size):
+            valid_examples = np.random.choice(self.valid_window, self.valid_size, replace=False)
+            valid_word = self.reverse_dictionary[valid_examples[i]]
+            top_k = 8  # number of nearest neighbors
+            sim = self._get_sim(valid_examples[i])
+            nearest = (-sim).argsort()[1:top_k + 1]
+            log_str = 'Nearest to %s:' % valid_word
+            for k in range(top_k):
+                close_word = self.reverse_dictionary[nearest[k]]
+                log_str = '%s %s,' % (log_str, close_word)
+            print(log_str)
+
+    def _get_sim(self, valid_word_idx):
+        sim = np.zeros((self.vocab_size,))
+        in_arr1 = np.zeros((1,))
+        in_arr2 = np.zeros((1,))
+        in_arr1[0,] = valid_word_idx
+        for i in range(self.vocab_size):
+            in_arr2[0,] = i
+            out = self.val_model.predict_on_batch([in_arr1, in_arr2])
+            sim[i] = out
+        return sim
 
 if __name__ == '__main__':
     clsf = Classifier()
