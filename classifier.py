@@ -77,7 +77,6 @@ class Classifier():
             word_target, word_context = zip(*couples)
             word_target = np.array(word_target, dtype="int32")
             word_context = np.array(word_context, dtype="int32")
-
             yield [word_target, word_context], labels
             left = right
             if right == limit:
@@ -250,12 +249,12 @@ class Classifier():
                                             batch_size=opt.batch_size)
         #self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        w2v_model.fit_generator(w2v_train_gen,
-                                epochs=opt.num_epochs,
+        for i in range(10):
+            w2v_model.fit_generator(w2v_train_gen,
+                                epochs=1,
                                 steps_per_epoch=self.steps_per_epoch,
                                 shuffle=True)
-
-        sim_cb.run_sim()
+            sim_cb.run_sim()
 
         self.logger.info('word2vec model pretrain done')
 
