@@ -34,7 +34,7 @@ opt = Option('./config.json')
 
 re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-:]')
 
-tfidfvec = joblib.load('../tfidf20.vec')
+tfidfvec = joblib.load('../chartfidf.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
 word_dict_size = tfdif_size
 # word_dict = joblib.load('../word_dict.dict')
@@ -52,15 +52,16 @@ if tfdif_size != int(opt.unigram_hash_size) or word_dict_size != int(opt.unigram
 def word2index(word):
     try:
         #return word_dict[word.decode('utf8')]
-        return tfidfvec.vocabulary_[word.decode('utf8')]
+        return tfidfvec.vocabulary_[word]
     except Exception as e:
+        print(e)
         return tfdif_size
 
-useless_token = ['상세', '설명', '참조', '없음', '상품상세']
+useless_token = [u'상세', u'설명', u'참조', u'없음', u'상품상세']
 def remove_token(name):
     for token in useless_token:
         if token in name:
-            return ''
+            return u''
     return name
 
 class Reader(object):
@@ -297,16 +298,16 @@ class Data:
         Y_d = to_categorical(Y_d, len(self.y_vocab[3]))
 
         ori_product = h['product'][i]
-        ori_product = re_sc.sub(' ', ori_product).strip()
+        ori_product = re_sc.sub(' ', ori_product.decode('utf-8')).strip()
 
         brand = h['brand'][i]
-        brand = re_sc.sub(' ', brand).strip()
+        brand = re_sc.sub(' ', brand.decode('utf-8')).strip()
 
         maker = h['maker'][i]
-        maker = re_sc.sub(' ', maker).strip()
+        maker = re_sc.sub(' ', maker.decode('utf-8')).strip()
 
         model = h['model'][i]
-        model = re_sc.sub(' ', model).strip()
+        model = re_sc.sub(' ', model.decode('utf-8')).strip()
 
         def merge_brand_maker(maker, brand, model, product):
             maker = remove_token(maker)
@@ -320,15 +321,16 @@ class Data:
             product_tokens = add_brand_token + product_tokens
             add_maker_token = [token for token in maker.split() if token not in product_tokens]
             product_tokens = add_maker_token + product_tokens
-            return ' '.join(product_tokens)
+            return u'ⓢ'.join(product_tokens)
 
         product = merge_brand_maker(maker, brand, model, ori_product).lower()
         if (i+1) % 2000 == 0:
             self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
 
-        words = [w.strip() for w in product.split()]
-        words = [w for w in words
-                 if len(w) >= opt.min_word_length and len(w) < opt.max_word_length]
+        # words = [w.strip() for w in product.split()]
+        # words = [w for w in words
+        #          if len(w) >= opt.min_word_length and len(w) < opt.max_word_length]
+        words = u' '.join(list(product)).split()
         if not words:
             return [None] * 2
 

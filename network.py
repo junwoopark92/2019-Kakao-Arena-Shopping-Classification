@@ -185,7 +185,7 @@ class AttentionBiLSTM:
 
     def get_model(self,num_classes, activation='sigmoid', mode='sum'):
         max_len = opt.max_len
-        voca_size = opt.unigram_hash_size + 1
+        voca_size = opt.unigram_hash_size + 2
 
         with tf.device('/gpu:0'):
             model = Sequential()
@@ -357,30 +357,34 @@ class MultiTaskAttnWord2vec:
             big_input = Input(shape=(max_len,), name='big_input')
 
             big_layer = self.big_embd(big_input)
-            big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer)
+            #big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer
+            big_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(big_layer)
             big_layer = Attention()(big_layer)
             big_layer = concatenate([big_layer, big_img])
             big_layer = Dropout(0.5)(big_layer)
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
             mid_layer = self.big_embd(big_input)
-            mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
+            #mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
+            mid_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(mid_layer)
             mid_layer = Attention()(mid_layer)
             mid_layer = concatenate([mid_layer, mid_img])
             mid_layer = Dropout(0.5)(mid_layer)
             mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
 
             s_layer = self.big_embd(big_input)
-            s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
+            #s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
+            s_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(s_layer)
             s_layer = Attention()(s_layer)
             s_layer = concatenate([s_layer, s_img])
             s_layer = Dropout(0.5)(s_layer)
             s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
 
             d_layer = self.big_embd(big_input)
-            d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
+            #d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
+            d_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(d_layer)
             d_layer = Attention()(d_layer)
-            d_layer = concatenate([d_layer, d_img, big_img])
+            d_layer = concatenate([d_layer, d_img])
             d_layer = Dropout(0.5)(d_layer)
             d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
 

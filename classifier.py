@@ -39,7 +39,7 @@ cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
-tfidfvec = joblib.load('../tfidf20.vec')
+tfidfvec = joblib.load('../chartfidf.vec')
 tfdif_size = len(tfidfvec.vocabulary_)
 
 class Classifier():
@@ -52,7 +52,7 @@ class Classifier():
         left, limit = 0, ds['uni'].shape[0]
         while True:
             right = min(left + batch_size, limit)
-            X = [ds[t][left:right, :] for t in ['uni', 'img']]
+            X = [ds[t][left:right, :] for t in ['uni', 'img']] #''
             Y = [ds[hirachi+'cate'][left:right] for hirachi in ['b','m','s','d']]
             yield X, Y
             left = right
@@ -68,7 +68,7 @@ class Classifier():
             couples = []
             labels = []
             for name in product_names:
-                length = np.where(name != opt.unigram_hash_size+1)[0].shape[0] + 1
+                length = np.where(name < opt.unigram_hash_size)[0].shape[0] + 1
                 couple, label = skipgrams(name[:length], opt.unigram_hash_size + 2,
                                           window_size=3, sampling_table=self.sampling_table)
                 couples.extend(couple)
@@ -243,7 +243,7 @@ class Classifier():
 
         w2v_train_gen = self.get_word2vec_generator(train,
                                               batch_size=opt.batch_size)
-        #self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
+        self.dev_steps_per_epoch = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
         w2v_dev_gen = self.get_word2vec_generator(dev,
                                             batch_size=opt.batch_size)
@@ -254,6 +254,10 @@ class Classifier():
                                 epochs=1,
                                 steps_per_epoch=self.steps_per_epoch,
                                 shuffle=True)
+            w2v_model.fit_generator(w2v_dev_gen,
+                                    epochs=1,
+                                    steps_per_epoch=self.dev_steps_per_epoch,
+                                    shuffle=True)
             sim_cb.run_sim()
 
         self.logger.info('word2vec model pretrain done')
