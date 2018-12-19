@@ -46,13 +46,13 @@ class Classifier():
     def __init__(self):
         self.logger = get_logger('Classifier')
         self.num_classes = 0
-        self.sampling_table = sequence.make_sampling_table(opt.unigram_hash_size + 2)
+        self.sampling_table = sequence.make_sampling_table(opt.word_voca_size + 2)
 
     def get_sample_generator(self, ds, batch_size):
-        left, limit = 0, ds['uni'].shape[0]
+        left, limit = 0, ds['wuni'].shape[0]
         while True:
             right = min(left + batch_size, limit)
-            X = [ds[t][left:right, :] for t in ['uni', 'img']] #''
+            X = [ds[t][left:right, :] for t in ['cuni', 'wuni', 'img']] #''
             Y = [ds[hirachi+'cate'][left:right] for hirachi in ['b','m','s','d']]
             yield X, Y
             left = right
@@ -60,16 +60,16 @@ class Classifier():
                 left = 0
 
     def get_word2vec_generator(self, ds, batch_size):
-        left, limit = 0, ds['uni'].shape[0]
+        left, limit = 0, ds['wuni'].shape[0]
 
         while True:
             right = min(left + batch_size, limit)
-            product_names = ds['uni'][left:right, :]
+            product_names = ds['wuni'][left:right, :]
             couples = []
             labels = []
             for name in product_names:
-                length = np.where(name < opt.unigram_hash_size)[0].shape[0] + 1
-                couple, label = skipgrams(name[:length], opt.unigram_hash_size + 2,
+                length = np.where(name < opt.word_voca_size)[0].shape[0] + 1
+                couple, label = skipgrams(name[:length], opt.word_voca_size + 2,
                                           window_size=3, sampling_table=self.sampling_table)
                 couples.extend(couple)
                 labels.extend(label)
@@ -172,7 +172,7 @@ class Classifier():
 
         test = test_data[test_div]
         test_gen = self.get_sample_generator(test, opt.batch_size)
-        total_test_samples = test['uni'].shape[0]
+        total_test_samples = test['wuni'].shape[0]
         steps = int(np.ceil(total_test_samples / float(opt.batch_size)))
         pred_y = model.predict_generator(test_gen,
                                          steps=steps,
@@ -231,12 +231,12 @@ class Classifier():
         reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
         sim_cb = SimilarityCallback(val_w2v_model, tfdif_size, tfdif_size, 5, reversed_dictionary)
 
-        total_train_samples = train['uni'].shape[0]
+        total_train_samples = train['wuni'].shape[0]
         train_gen = self.get_sample_generator(train,
                                               batch_size=opt.batch_size)
         self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
 
-        total_dev_samples = dev['uni'].shape[0]
+        total_dev_samples = dev['wuni'].shape[0]
         dev_gen = self.get_sample_generator(dev,
                                             batch_size=opt.batch_size)
         self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
@@ -249,18 +249,18 @@ class Classifier():
                                             batch_size=opt.batch_size)
         #self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        for i in range(10):
-            w2v_model.fit_generator(w2v_train_gen,
-                                epochs=1,
-                                steps_per_epoch=self.steps_per_epoch,
-                                shuffle=True)
-            w2v_model.fit_generator(w2v_dev_gen,
-                                    epochs=1,
-                                    steps_per_epoch=self.dev_steps_per_epoch,
-                                    shuffle=True)
-            sim_cb.run_sim()
-
-        self.logger.info('word2vec model pretrain done')
+        # for i in range(10):
+        #     w2v_model.fit_generator(w2v_train_gen,
+        #                         epochs=1,
+        #                         steps_per_epoch=self.steps_per_epoch,
+        #                         shuffle=True)
+        #     w2v_model.fit_generator(w2v_dev_gen,
+        #                             epochs=1,
+        #                             steps_per_epoch=self.dev_steps_per_epoch,
+        #                             shuffle=True)
+        #     sim_cb.run_sim()
+        #
+        # self.logger.info('word2vec model pretrain done')
 
         classification_model.fit_generator(generator=train_gen,
                             steps_per_epoch=self.steps_per_epoch,

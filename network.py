@@ -314,18 +314,19 @@ class MultiTaskAttnWord2vec:
     def __init__(self):
         self.logger = get_logger('attn-bilstm-cls')
         self.embed_matrix = joblib.load('../embed_matrix.np')
-        self.voca_size = opt.unigram_hash_size + 2
-        self.big_embd = Embedding(self.voca_size, opt.embd_size, name='shared_embed', trainable=True)
+        self.voca_size = opt.word_voca_size + 2
+        self.char_voca_size = opt.char_voca_size + 2
+        self.word_embd = Embedding(self.voca_size, opt.word_embd_size, name='shared_embed', trainable=True)
 
     def get_word2vec_model(self):
         with tf.device('/gpu:0'):
             input_target = Input((1,))
             input_context = Input((1,))
 
-            target = self.big_embd(input_target)
-            target = Reshape((opt.embd_size, 1))(target)
-            context = self.big_embd(input_context)
-            context = Reshape((opt.embd_size, 1))(context)
+            target = self.word_embd(input_target)
+            target = Reshape((opt.word_embd_size, 1))(target)
+            context = self.word_embd(input_context)
+            context = Reshape((opt.word_embd_size, 1))(context)
 
             # setup a cosine similarity operation which will be output in a secondary model
             similarity = merge.dot([target, context], axes=0, normalize=True)
@@ -345,50 +346,60 @@ class MultiTaskAttnWord2vec:
             return model, validation_model
 
     def get_classification_model(self, num_classes, activation='sigmoid', mode='sum'):
-        max_len = opt.max_len
+        char_max_len = opt.char_max_len
+        word_max_len = opt.word_max_len
 
         with tf.device('/gpu:0'):
             img_input = Input((2048,))
-            big_img = Dense(len(num_classes[0]), activation='relu')(img_input)
-            mid_img = Dense(len(num_classes[1]), activation='relu')(img_input)
-            s_img = Dense(len(num_classes[2]), activation='relu')(img_input)
-            d_img = Dense(len(num_classes[3]), activation='relu')(img_input)
+            big_img = Dense(128, activation='relu')(img_input)
+            mid_img = Dense(128, activation='relu')(img_input)
+            s_img = Dense(128, activation='relu')(img_input)
+            d_img = Dense(128, activation='relu')(img_input)
 
-            big_input = Input(shape=(max_len,), name='big_input')
+            char_input = Input(shape=(char_max_len,), name='char_input')
+            word_input = Input(shape=(word_max_len,), name='word_input')
 
-            big_layer = self.big_embd(big_input)
-            #big_layer = SeqSelfAttention(attention_activation='sigmoid')(big_layer
-            big_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(big_layer)
-            big_layer = Attention()(big_layer)
-            big_layer = concatenate([big_layer, big_img])
+            char_embd = Embedding(self.char_voca_size, opt.char_embd_size, name='char_shared_embed', trainable=True)(char_input)
+            word_embd = self.word_embd(word_input)
+            char_seq = Bidirectional(LSTM(char_max_len, return_sequences=True), merge_mode=mode)(char_embd)
+
+            big_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
+            big_word_layer = Attention()(big_word_layer)
+
+            big_char_layer = Attention()(char_seq)
+
+            big_layer = concatenate([big_word_layer, big_char_layer, big_img])
             big_layer = Dropout(0.5)(big_layer)
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
-            mid_layer = self.big_embd(big_input)
-            #mid_layer = SeqSelfAttention(attention_activation='sigmoid')(mid_layer)
-            mid_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(mid_layer)
-            mid_layer = Attention()(mid_layer)
-            mid_layer = concatenate([mid_layer, mid_img])
+            mid_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
+            mid_word_layer = Attention()(mid_word_layer)
+
+            mid_char_layer = Attention()(char_seq)
+
+            mid_layer = concatenate([mid_word_layer, mid_char_layer, mid_img])
             mid_layer = Dropout(0.5)(mid_layer)
             mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
 
-            s_layer = self.big_embd(big_input)
-            #s_layer = SeqSelfAttention(attention_activation='sigmoid')(s_layer)
-            s_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(s_layer)
-            s_layer = Attention()(s_layer)
-            s_layer = concatenate([s_layer, s_img])
+            s_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
+            s_word_layer = Attention()(s_word_layer)
+
+            s_char_layer = Attention()(char_seq)
+
+            s_layer = concatenate([s_word_layer, s_char_layer, s_img])
             s_layer = Dropout(0.5)(s_layer)
             s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
 
-            d_layer = self.big_embd(big_input)
-            #d_layer = SeqSelfAttention(attention_activation='sigmoid')(d_layer)
-            d_layer = Bidirectional(LSTM(64, return_sequences=True), merge_mode=mode)(d_layer)
-            d_layer = Attention()(d_layer)
-            d_layer = concatenate([d_layer, d_img])
+            d_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
+            d_word_layer = Attention()(d_word_layer)
+
+            d_char_layer = Attention()(char_seq)
+
+            d_layer = concatenate([d_word_layer, d_char_layer, d_img])
             d_layer = Dropout(0.5)(d_layer)
             d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
 
-            model = Model(inputs=[big_input, img_input],
+            model = Model(inputs=[char_input, word_input, img_input],
                           outputs=[big_out, mid_out, s_out, d_out])
 
             model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy',

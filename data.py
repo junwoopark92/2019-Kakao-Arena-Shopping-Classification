@@ -34,35 +34,43 @@ opt = Option('./config.json')
 
 re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-:]')
 
-tfidfvec = joblib.load('../chartfidf.vec')
-tfdif_size = len(tfidfvec.vocabulary_)
-word_dict_size = tfdif_size
-# word_dict = joblib.load('../word_dict.dict')
-# word_dict_size = len(word_dict)
+tfidf_char_vec = joblib.load('../chartfidf.vec')
+tfdif_char_size = len(tfidf_char_vec.vocabulary_)
 
-kmeans = joblib.load('../kmeans.model')
-kmeans.verbose = 0
-imgfeat_size = 2048#kmeans.n_cluster
+tfidf_word_vec = joblib.load('../tfidf20.vec')
+tfdif_word_size = len(tfidf_word_vec.vocabulary_)
 
-if tfdif_size != int(opt.unigram_hash_size) or word_dict_size != int(opt.unigram_hash_size):
-    print tfdif_size, word_dict_size, int(opt.unigram_hash_size)
+imgfeat_size = 2048
+
+if tfdif_char_size != int(opt.char_voca_size) or tfdif_word_size != int(opt.word_voca_size):
+    print tfdif_char_size, tfdif_word_size, int(opt.unigram_hash_size)
     raise Exception
+
+
+def char2index(word):
+    try:
+        return tfidf_char_vec.vocabulary_[word]
+    except Exception as e:
+        print(e)
+        return tfdif_char_size
 
 
 def word2index(word):
     try:
-        #return word_dict[word.decode('utf8')]
-        return tfidfvec.vocabulary_[word]
+        return tfidf_word_vec.vocabulary_[word]
     except Exception as e:
-        print(e)
-        return tfdif_size
+        return tfdif_word_size
+
 
 useless_token = [u'상세', u'설명', u'참조', u'없음', u'상품상세']
+
+
 def remove_token(name):
     for token in useless_token:
         if token in name:
             return u''
     return name
+
 
 class Reader(object):
     def __init__(self, data_path_list, div, begin_offset, end_offset):
@@ -233,23 +241,18 @@ class Data:
             y, x = self.parse_data(label, h, i)
             if y is None:
                 continue
-            x, img_feat = x[0], x[1]
-            rets.append((pid, y, x))
+            char_x, word_x, img_feat = x[0], x[1], x[2]
+            rets.append((pid, y, char_x, word_x))
             img_feats.append(img_feat)
         self.logger.info('sz=%s' % (len(rets)))
 
         st = time.time()
         img_feats = np.asarray(img_feats)
-        #cls = kmeans.transform(img_feats)
-        #img_one_hots = (cls - np.mean(cls))/np.std(cls) 
-	#img_one_hots = to_categorical(img_cls_label, kmeans.n_clusters)
-
-        #print 'cls predict times: ', round(time.time() - st, 2)
-	img_one_hots = img_feats
+        img_one_hots = img_feats
 
         temp_rets = []
         for ret, img_one_hot in zip(rets, img_one_hots):
-            temp_rets.append((ret[0], ret[1], (ret[2], img_one_hot)))
+            temp_rets.append((ret[0], ret[1], (ret[2], ret[3], img_one_hot)))
 
         rets = temp_rets
 
@@ -327,24 +330,35 @@ class Data:
         if (i+1) % 2000 == 0:
             self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
 
-        # words = [w.strip() for w in product.split()]
-        # words = [w for w in words
-        #          if len(w) >= opt.min_word_length and len(w) < opt.max_word_length]
-        words = u' '.join(list(product)).split()
-        if not words:
+        words = [w.strip() for w in product.split(u'ⓢ')]
+        words = [w for w in words
+                 if len(w) >= opt.min_word_length and len(w) < opt.max_word_length]
+
+        chars = u' '.join(list(product)).split()
+
+        if not chars:
             return [None] * 2
 
-        wx = [word2index(w) for w in words][:opt.max_len]
-        x = np.array([opt.unigram_hash_size + 1]*opt.max_len, dtype=np.float32)
+        wx = [word2index(w) for w in words][:opt.word_max_len]
+        cx = [char2index(w) for w in chars][:opt.char_max_len]
+        char_x = np.array([opt.char_voca_size + 1]*opt.char_max_len, dtype=np.float32)
+        word_x = np.array([opt.word_voca_size + 1]*opt.word_max_len, dtype=np.float32)
 
         img_feat = h['img_feat'][i]
+        for i in range(len(cx)):
+            char_x[i] = cx[i]
+
         for i in range(len(wx)):
-            x[i] = wx[i]
-        return (Y_b, Y_m, Y_s, Y_d), (x, img_feat)
+            word_x[i] = wx[i]
+
+        return (Y_b, Y_m, Y_s, Y_d), (char_x, word_x, img_feat)
+
 
     def create_dataset(self, g, size, num_classes):
-        shape = (size, opt.max_len)
-        g.create_dataset('uni', shape, chunks=True, dtype=np.int32)
+        char_shape = (size, opt.char_max_len)
+        word_shape = (size, opt.word_max_len)
+        g.create_dataset('wuni', word_shape, chunks=True, dtype=np.int32)
+        g.create_dataset('cuni', char_shape, chunks=True, dtype=np.int32)
         g.create_dataset('img', (size, imgfeat_size), chunks=True, dtype=np.float32)
         g.create_dataset('bcate', (size, len(num_classes[0])), chunks=True, dtype=np.int32)
         g.create_dataset('mcate', (size, len(num_classes[1])), chunks=True, dtype=np.int32)
@@ -353,9 +367,11 @@ class Data:
         g.create_dataset('pid', (size,), chunks=True, dtype='S12')
 
     def init_chunk(self, chunk_size, num_classes):
-        chunk_shape = (chunk_size, opt.max_len)
+        char_shape = (chunk_size, opt.char_max_len)
+        word_shape = (chunk_size, opt.word_max_len)
         chunk = {}
-        chunk['uni'] = np.zeros(shape=chunk_shape, dtype=np.int32)
+        chunk['cuni'] = np.zeros(shape=char_shape, dtype=np.int32)
+        chunk['wuni'] = np.zeros(shape=word_shape, dtype=np.int32)
         chunk['img'] = np.zeros(shape=(chunk_size, imgfeat_size), dtype=np.float32)
         chunk['bcate'] = np.zeros(shape=(chunk_size, len(num_classes[0])), dtype=np.int32)
         chunk['mcate'] = np.zeros(shape=(chunk_size, len(num_classes[1])), dtype=np.int32)
@@ -367,7 +383,8 @@ class Data:
 
     def copy_chunk(self, dataset, chunk, offset, with_pid_field=False):
         num = chunk['num']
-        dataset['uni'][offset:offset + num, :] = chunk['uni'][:num]
+        dataset['cuni'][offset:offset + num, :] = chunk['cuni'][:num]
+        dataset['wuni'][offset:offset + num, :] = chunk['wuni'][:num]
         dataset['img'][offset:offset + num] = chunk['img'][:num]
         dataset['bcate'][offset:offset + num] = chunk['bcate'][:num]
         dataset['mcate'][offset:offset + num] = chunk['mcate'][:num]
@@ -465,8 +482,9 @@ class Data:
                     continue
                 c = chunk['train'] if is_train else chunk['dev']
                 idx = c['num']
-                c['uni'][idx] = x[0]
-                c['img'][idx] = x[1]
+                c['cuni'][idx] = x[0]
+                c['wuni'][idx] = x[1]
+                c['img'][idx] = x[2]
                 c['bcate'][idx] = y[0]
                 c['mcate'][idx] = y[1]
                 c['scate'][idx] = y[2]
@@ -490,8 +508,10 @@ class Data:
         for div in ['train', 'dev']:
             ds = dataset[div]
             size = num_samples[div]
-            shape = (size, opt.max_len)
-            ds['uni'].resize(shape)
+            char_shape = (size, opt.char_max_len)
+            word_shape = (size, opt.word_max_len)
+            ds['cuni'].resize(char_shape)
+            ds['wuni'].resize(word_shape)
             ds['img'].resize((size, imgfeat_size))
             ds['bcate'].resize((size, len(self.y_vocab[0])))
             ds['mcate'].resize((size, len(self.y_vocab[1])))
