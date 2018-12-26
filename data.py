@@ -43,7 +43,7 @@ tfdif_word_size = len(tfidf_word_vec.vocabulary_)
 imgfeat_size = 2048
 
 if tfdif_char_size != int(opt.char_voca_size) or tfdif_word_size != int(opt.word_voca_size):
-    print tfdif_char_size, tfdif_word_size, int(opt.unigram_hash_size)
+    print tfdif_char_size, tfdif_word_size
     raise Exception
 
 
