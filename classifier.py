@@ -39,14 +39,18 @@ cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
-tfidfvec = joblib.load('../chartfidf.vec')
-tfdif_size = len(tfidfvec.vocabulary_)
+char_tfidf_vec = joblib.load('../chartfidf.vec')
+char_tfidf_size = len(char_tfidf_vec.vocabulary_)
+
+word_tfidf_vec = joblib.load('../tfidf20.vec')
+word_tfidf_size = len(word_tfidf_vec.vocabulary_)
 
 class Classifier():
     def __init__(self):
         self.logger = get_logger('Classifier')
         self.num_classes = 0
-        self.sampling_table = sequence.make_sampling_table(opt.word_voca_size + 2)
+        self.word_sampling_table = sequence.make_sampling_table(opt.word_voca_size + 2)
+        self.char_sampling_table = sequence.make_sampling_table(opt.char_voca_size + 2)
 
     def get_sample_generator(self, ds, batch_size):
         left, limit = 0, ds['wuni'].shape[0]
@@ -70,7 +74,7 @@ class Classifier():
             for name in product_names:
                 length = np.where(name < opt.word_voca_size)[0].shape[0] + 1
                 couple, label = skipgrams(name[:length], opt.word_voca_size + 2,
-                                          window_size=3, sampling_table=self.sampling_table)
+                                          window_size=3, sampling_table=self.word_sampling_table)
                 couples.extend(couple)
                 labels.extend(label)
 
@@ -78,6 +82,29 @@ class Classifier():
             word_target = np.array(word_target, dtype="int32")
             word_context = np.array(word_context, dtype="int32")
             yield [word_target, word_context], labels
+            left = right
+            if right == limit:
+                left = 0
+
+    def get_char2vec_generator(self, ds, batch_size):
+        left, limit = 0, ds['wuni'].shape[0]
+
+        while True:
+            right = min(left + batch_size, limit)
+            product_names = ds['cuni'][left:right, :]
+            couples = []
+            labels = []
+            for name in product_names:
+                length = np.where(name < opt.char_voca_size)[0].shape[0] + 1
+                couple, label = skipgrams(name[:length], opt.char_voca_size + 2,
+                                          window_size=3, sampling_table=self.char_sampling_table)
+                couples.extend(couple)
+                labels.extend(label)
+
+            char_target, char_context = zip(*couples)
+            char_target = np.array(char_target, dtype="int32")
+            char_context = np.array(char_context, dtype="int32")
+            yield [char_target, char_context], labels
             left = right
             if right == limit:
                 left = 0
@@ -204,7 +231,9 @@ class Classifier():
 
         classification_model = None
         w2v_model = None
+        c2v_model = None
         val_w2v_model = None
+        val_c2v_model = None
         if not resume:
             #textonly = TextOnly()
             #textonly = CNNLSTM()
@@ -215,6 +244,7 @@ class Classifier():
             textonly = MultiTaskAttnWord2vec()
             classification_model = textonly.get_classification_model(self.num_classes, mode='sum')
             w2v_model, val_w2v_model = textonly.get_word2vec_model()
+            c2v_model, val_c2v_model = textonly.get_char2vec_model()
 
         else:
             model_fname = os.path.join(out_dir, 'model.h5')
@@ -227,40 +257,60 @@ class Classifier():
                                                             'masked_loss_function_d':masked_loss_function_d,
                                                             'masked_loss_function_s':masked_loss_function_s})
 
-        dictionary = tfidfvec.vocabulary_
-        reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-        sim_cb = SimilarityCallback(val_w2v_model, tfdif_size, tfdif_size, 5, reversed_dictionary)
+        char_dictionary = char_tfidf_vec.vocabulary_
+        char_reversed_dictionary = dict(zip(char_dictionary.values(), char_dictionary.keys()))
+
+        word_dictionary = word_tfidf_vec.vocabulary_
+        word_reversed_dictionary = dict(zip(word_dictionary.values(), word_dictionary.keys()))
+
+        word_sim_cb = SimilarityCallback(val_w2v_model, 100000, 5000, 5, word_reversed_dictionary)
+        char_sim_cb = SimilarityCallback(val_c2v_model, char_tfidf_size, char_tfidf_size, 5, char_reversed_dictionary)
 
         total_train_samples = train['wuni'].shape[0]
-        train_gen = self.get_sample_generator(train,
-                                              batch_size=opt.batch_size)
+        train_gen = self.get_sample_generator(train, batch_size=opt.batch_size)
         self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
 
         total_dev_samples = dev['wuni'].shape[0]
-        dev_gen = self.get_sample_generator(dev,
-                                            batch_size=opt.batch_size)
+        dev_gen = self.get_sample_generator(dev, batch_size=opt.batch_size)
         self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        w2v_train_gen = self.get_word2vec_generator(train,
-                                              batch_size=opt.batch_size)
+        w2v_train_gen = self.get_word2vec_generator(train, batch_size=opt.batch_size)
         self.dev_steps_per_epoch = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        w2v_dev_gen = self.get_word2vec_generator(dev,
-                                            batch_size=opt.batch_size)
+        w2v_dev_gen = self.get_word2vec_generator(dev, batch_size=opt.batch_size)
         #self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        # for i in range(10):
-        #     w2v_model.fit_generator(w2v_train_gen,
-        #                         epochs=1,
-        #                         steps_per_epoch=self.steps_per_epoch,
-        #                         shuffle=True)
-        #     w2v_model.fit_generator(w2v_dev_gen,
-        #                             epochs=1,
-        #                             steps_per_epoch=self.dev_steps_per_epoch,
-        #                             shuffle=True)
-        #     sim_cb.run_sim()
-        #
-        # self.logger.info('word2vec model pretrain done')
+        c2v_train_gen = self.get_char2vec_generator(train, batch_size=opt.batch_size)
+        self.dev_steps_per_epoch = int(np.ceil(total_dev_samples / float(opt.batch_size)))
+
+        c2v_dev_gen = self.get_char2vec_generator(dev, batch_size=opt.batch_size)
+        # self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
+
+        for i in range(10):
+            w2v_model.fit_generator(w2v_train_gen,
+                                epochs=1,
+                                steps_per_epoch=self.steps_per_epoch,
+                                shuffle=True)
+            w2v_model.fit_generator(w2v_dev_gen,
+                                    epochs=1,
+                                    steps_per_epoch=self.dev_steps_per_epoch,
+                                    shuffle=True)
+            word_sim_cb.run_sim()
+
+        self.logger.info('word2vec model pretrain done')
+
+        for i in range(5):
+            c2v_model.fit_generator(c2v_train_gen,
+                                epochs=1,
+                                steps_per_epoch=self.steps_per_epoch,
+                                shuffle=True)
+            c2v_model.fit_generator(c2v_dev_gen,
+                                    epochs=1,
+                                    steps_per_epoch=self.dev_steps_per_epoch,
+                                    shuffle=True)
+            char_sim_cb.run_sim()
+
+        self.logger.info('word2vec model pretrain done')
 
         classification_model.fit_generator(generator=train_gen,
                             steps_per_epoch=self.steps_per_epoch,

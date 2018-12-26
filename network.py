@@ -317,6 +317,34 @@ class MultiTaskAttnWord2vec:
         self.voca_size = opt.word_voca_size + 2
         self.char_voca_size = opt.char_voca_size + 2
         self.word_embd = Embedding(self.voca_size, opt.word_embd_size, name='shared_embed', trainable=True)
+        self.char_embd = Embedding(self.char_voca_size, opt.char_embd_size, name='shared_char_embed', trainable=True)
+
+    def get_char2vec_model(self):
+        with tf.device('/gpu:0'):
+            input_target = Input((1,))
+            input_context = Input((1,))
+
+            target = self.char_embd(input_target)
+            target = Reshape((opt.char_embd_size, 1))(target)
+            context = self.char_embd(input_context)
+            context = Reshape((opt.char_embd_size, 1))(context)
+
+            # setup a cosine similarity operation which will be output in a secondary model
+            similarity = merge.dot([target, context], axes=0, normalize=True)
+
+            # now perform the dot product operation to get a similarity measure
+            dot_product = merge.dot([target, context], axes=1)
+            dot_product = Reshape((1,))(dot_product)
+            # add the sigmoid output layer
+            output = Dense(1, activation='sigmoid')(dot_product)
+            # create the primary training model
+            model = Model(input=[input_target, input_context], output=output)
+            model.compile(loss='binary_crossentropy', optimizer='rmsprop')
+            model.summary()
+
+            validation_model = Model(input=[input_target, input_context], output=similarity)
+
+            return model, validation_model
 
     def get_word2vec_model(self):
         with tf.device('/gpu:0'):
@@ -359,7 +387,7 @@ class MultiTaskAttnWord2vec:
             char_input = Input(shape=(char_max_len,), name='char_input')
             word_input = Input(shape=(word_max_len,), name='word_input')
 
-            char_embd = Embedding(self.char_voca_size, opt.char_embd_size, name='char_shared_embed', trainable=True)(char_input)
+            char_embd = self.char_embd(char_input)
             word_embd = self.word_embd(word_input)
             char_seq = Bidirectional(LSTM(char_max_len, return_sequences=True), merge_mode=mode)(char_embd)
 
