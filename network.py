@@ -391,39 +391,53 @@ class MultiTaskAttnWord2vec:
             word_embd = self.word_embd(word_input)
             char_seq = Bidirectional(LSTM(char_max_len, return_sequences=True), merge_mode=mode)(char_embd)
 
+            char_seq1 = SeqSelfAttention(attention_activation='sigmoid')(char_seq)
+            char_ngram1 = Attention()(char_seq1)
+
+            conv1 = Conv1D(filters=32, kernel_size=2, activation='relu')(char_seq)
+            drop1 = Dropout(0.5)(conv1)
+            pool1 = MaxPooling1D(pool_size=2)(drop1)
+            char_ngram2 = Attention()(pool1)
+
+            # channel 2
+            conv2 = Conv1D(filters=32, kernel_size=3, activation='relu')(char_seq)
+            drop2 = Dropout(0.5)(conv2)
+            pool2 = MaxPooling1D(pool_size=2)(drop2)
+            char_ngram3 = Attention()(pool2)
+
+            # channel 3
+            conv3 = Conv1D(filters=32, kernel_size=5, activation='relu')(char_seq)
+            drop3 = Dropout(0.5)(conv3)
+            pool3 = MaxPooling1D(pool_size=2)(drop3)
+            char_ngram5 = Attention()(pool3)
+
             big_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
             big_word_layer = Attention()(big_word_layer)
 
-            big_char_layer = Attention()(char_seq)
+            cnn_char_seq = concatenate([char_ngram1, char_ngram2, char_ngram3, char_ngram5])
 
-            big_layer = concatenate([big_word_layer, big_char_layer, big_img])
+            big_layer = concatenate([big_word_layer, cnn_char_seq, big_img])
             big_layer = Dropout(0.5)(big_layer)
             big_out = Dense(len(num_classes[0]), activation='softmax', name='big')(big_layer)
 
             mid_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
             mid_word_layer = Attention()(mid_word_layer)
 
-            mid_char_layer = Attention()(char_seq)
-
-            mid_layer = concatenate([mid_word_layer, mid_char_layer, mid_img])
+            mid_layer = concatenate([mid_word_layer, cnn_char_seq, mid_img])
             mid_layer = Dropout(0.5)(mid_layer)
             mid_out = Dense(len(num_classes[1]), activation='softmax', name='mid')(mid_layer)
 
             s_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
             s_word_layer = Attention()(s_word_layer)
 
-            s_char_layer = Attention()(char_seq)
-
-            s_layer = concatenate([s_word_layer, s_char_layer, s_img])
+            s_layer = concatenate([s_word_layer, cnn_char_seq, s_img])
             s_layer = Dropout(0.5)(s_layer)
             s_out = Dense(len(num_classes[2]), activation='softmax', name='small')(s_layer)
 
             d_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
             d_word_layer = Attention()(d_word_layer)
 
-            d_char_layer = Attention()(char_seq)
-
-            d_layer = concatenate([d_word_layer, d_char_layer, d_img])
+            d_layer = concatenate([d_word_layer, cnn_char_seq, d_img])
             d_layer = Dropout(0.5)(d_layer)
             d_out = Dense(len(num_classes[3]), activation='softmax', name='detail')(d_layer)
 
