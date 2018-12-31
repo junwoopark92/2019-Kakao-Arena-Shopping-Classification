@@ -287,7 +287,7 @@ class Classifier():
         c2v_dev_gen = self.get_char2vec_generator(dev, batch_size=opt.batch_size)
         # self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
-        for i in range(5):
+        for i in range(0):
             w2v_model.fit_generator(w2v_train_gen,
                                 epochs=1,
                                 steps_per_epoch=self.steps_per_epoch,
@@ -300,7 +300,7 @@ class Classifier():
 
         self.logger.info('word2vec model pretrain done')
 
-        for i in range(5):
+        for i in range(0):
             c2v_model.fit_generator(c2v_train_gen,
                                 epochs=1,
                                 steps_per_epoch=self.steps_per_epoch,
@@ -357,6 +357,7 @@ class SimilarityCallback:
             out = self.val_model.predict_on_batch([in_arr1, in_arr2])
             sim[i] = out
         return sim
+
 
 if __name__ == '__main__':
     clsf = Classifier()
