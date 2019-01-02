@@ -19,7 +19,6 @@ import sys
 import cPickle
 import traceback
 import time
-from collections import Counter
 from multiprocessing import Pool
 
 import tqdm
@@ -29,47 +28,36 @@ import numpy as np
 from keras.utils.np_utils import to_categorical
 
 from sklearn.externals import joblib
+from sent2index import re_sc, merge_brand_maker
 from misc import get_logger, Option
 opt = Option('./config.json')
 
-re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-:]')
-
-tfidf_char_vec = joblib.load('../chartfidf.vec')
-tfdif_char_size = len(tfidf_char_vec.vocabulary_)
-
-tfidf_word_vec = joblib.load('../tfidf20.vec')
-tfdif_word_size = len(tfidf_word_vec.vocabulary_)
+char_dict = joblib.load('../char_tfidf_200.dict')
+tfdif_char_size = len(char_dict)
+word_dict = joblib.load('../word_tfidf_200.dict')
+tfdif_word_size = len(word_dict)
 
 imgfeat_size = 2048
 
 if tfdif_char_size != int(opt.char_voca_size) or tfdif_word_size != int(opt.word_voca_size):
-    print tfdif_char_size, tfdif_word_size
-    raise Exception
+    print(tfdif_char_size, tfdif_word_size)
+    raise Exception()
 
 
 def char2index(word):
     try:
-        return tfidf_char_vec.vocabulary_[word]
+        return char_dict[word]
     except Exception as e:
-        print(e)
+        log_str = '[char2index] %s:' % e
+        print(log_str)
         return tfdif_char_size
 
 
 def word2index(word):
     try:
-        return tfidf_word_vec.vocabulary_[word]
+        return word_dict[word]
     except Exception as e:
         return tfdif_word_size
-
-
-useless_token = [u'상세', u'설명', u'참조', u'없음', u'상품상세']
-
-
-def remove_token(name):
-    for token in useless_token:
-        if token in name:
-            return u''
-    return name
 
 
 class Reader(object):
@@ -246,7 +234,6 @@ class Data:
             img_feats.append(img_feat)
         self.logger.info('sz=%s' % (len(rets)))
 
-        st = time.time()
         img_feats = np.asarray(img_feats)
         img_one_hots = img_feats
 
@@ -281,7 +268,6 @@ class Data:
         return num_chunks
 
     def parse_data(self, label, h, i):
-        #print(type(self.y_vocab[0]), label)
         Y_b = self.y_vocab[0].get(label[0])
         Y_m = self.y_vocab[1].get(label[1])
         Y_s = self.y_vocab[2].get(label[2])
@@ -312,21 +298,7 @@ class Data:
         model = h['model'][i]
         model = re_sc.sub(' ', model.decode('utf-8')).strip()
 
-        def merge_brand_maker(maker, brand, model, product):
-            maker = remove_token(maker)
-            brand = remove_token(brand)
-            model = remove_token(model)
-
-            product_tokens = product.split()
-            add_model_token = [token for token in model.split() if token not in product_tokens]
-            product_tokens = add_model_token + product_tokens
-            add_brand_token = [token for token in brand.split() if token not in product_tokens]
-            product_tokens = add_brand_token + product_tokens
-            add_maker_token = [token for token in maker.split() if token not in product_tokens]
-            product_tokens = add_maker_token + product_tokens
-            return u'ⓢ'.join(product_tokens)
-
-        product = merge_brand_maker(maker, brand, model, ori_product).lower()
+        product = merge_brand_maker(maker, brand, model, ori_product, u'ⓢ').lower()
         if (i+1) % 2000 == 0:
             self.logger.info('[ %s ] -> [ %s ]' % (ori_product, product))
 
@@ -352,7 +324,6 @@ class Data:
             word_x[i] = wx[i]
 
         return (Y_b, Y_m, Y_s, Y_d), (char_x, word_x, img_feat)
-
 
     def create_dataset(self, g, size, num_classes):
         char_shape = (size, opt.char_max_len)

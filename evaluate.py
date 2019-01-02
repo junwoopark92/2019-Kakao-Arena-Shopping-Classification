@@ -20,6 +20,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
+
 def evaluate(predict_path, data_path, div, y_vocab_path):
     h = h5py.File(data_path, 'r')[div]
     inv_y_vocab_b = {v: k
@@ -56,7 +57,7 @@ def evaluate(predict_path, data_path, div, y_vocab_path):
             n[depth] = n.get(depth, 0) + 1
             if _p == _g:
                 hit[depth] = hit.get(depth, 0) + 1
-    pd.DataFrame(results).to_csv('./comp_predict.tsv',sep='\t',index=False)
+
     for d in ['b', 'm', 's', 'd']:
         if n[d] > 0:
             print '%s-Accuracy: %.3f(%s/%s)' % (d, hit[d] / float(n[d]), hit[d], n[d])
@@ -64,6 +65,7 @@ def evaluate(predict_path, data_path, div, y_vocab_path):
                  for d, w in zip(['b', 'm', 's', 'd'],
                                  [1.0, 1.2, 1.3, 1.4])]) / 4.0
     print 'score: %.3f' % score
+
 
 if __name__ == '__main__':
     fire.Fire({'evaluate': evaluate})
