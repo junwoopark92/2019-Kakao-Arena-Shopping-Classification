@@ -137,7 +137,7 @@ class Word2Vec:
         self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
         c2v_train_gen = self.get_char2vec_generator(train, batch_size=opt.batch_size)
 
-        for i in range(3):
+        for i in range(5):
             w2v_model.fit_generator(w2v_train_gen,
                                     epochs=1,
                                     steps_per_epoch=self.steps_per_epoch,
@@ -150,7 +150,7 @@ class Word2Vec:
 
         self.logger.info('word2vec model pretrain done')
 
-        for i in range(3):
+        for i in range(5):
             c2v_model.fit_generator(c2v_train_gen,
                                     epochs=1,
                                     steps_per_epoch=self.steps_per_epoch,

@@ -111,7 +111,7 @@ class RawData:
             if i > 5:
                 break
 
-        joblib.dump(vectorizer.vocabulary_, '../{}_tfidf_{}.dict'.format(sep, str(max_features)[:3]))
+        joblib.dump(vectorizer.vocabulary_, '../{}_tfidf_{}_min1.dict'.format(sep, str(max_features)[:3]))
 
     def make_count_vec(self, dirpath, sep='word', max_features=200000, min_df=3):
         df = self.merge_chunks(dirpath)

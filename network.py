@@ -201,39 +201,43 @@ class MultiTaskAttnWord2vec:
             word_embd = self.word_embd(word_input)
             char_seq = Bidirectional(LSTM(char_max_len, return_sequences=True), merge_mode=mode)(char_embd)
 
-            conv1 = Conv1D(filters=48, kernel_size=2, activation='relu')(char_seq)
-            drop1 = Dropout(0.5)(conv1)
-            pool1 = MaxPooling1D(pool_size=2)(drop1)
+            #conv1 = Conv1D(filters=128, kernel_size=2, activation='relu')(char_seq)
+            #drop1 = Dropout(0.5)(conv1)
+            #pool1 = MaxPooling1D(pool_size=2)(drop1)
 
             # channel 2
-            conv2 = Conv1D(filters=32, kernel_size=3, activation='relu')(char_seq)
-            drop2 = Dropout(0.5)(conv2)
-            pool2 = MaxPooling1D(pool_size=2)(drop2)
+            #conv2 = Conv1D(filters=128, kernel_size=3, activation='relu')(char_seq)
+            #drop2 = Dropout(0.5)(conv2)
+            #pool2 = MaxPooling1D(pool_size=2)(drop2)
 
             # channel 3
-            conv3 = Conv1D(filters=24, kernel_size=4, activation='relu')(char_seq)
-            drop3 = Dropout(0.5)(conv3)
-            pool3 = MaxPooling1D(pool_size=2)(drop3)
+            #conv3 = Conv1D(filters=128, kernel_size=4, activation='relu')(char_seq)
+            #drop3 = Dropout(0.5)(conv3)
+            #pool3 = MaxPooling1D(pool_size=2)(drop3)
 
             # channel 4
-            conv4 = Conv1D(filters=16, kernel_size=6, activation='relu')(char_seq)
-            drop4 = Dropout(0.5)(conv4)
-            pool4 = MaxPooling1D(pool_size=2)(drop4)
+            #conv4 = Conv1D(filters=128, kernel_size=6, activation='relu')(char_seq)
+            #drop4 = Dropout(0.5)(conv4)
+            #pool4 = MaxPooling1D(pool_size=2)(drop4)
 
-            ngram1, ngram2, ngram3, ngram4, ngram6 = char_seq, pool1, pool2, pool3, pool4
+            #ngram1, ngram2, ngram3, ngram4, ngram6 = char_seq, pool1, pool2, pool3, pool4
 
-            big_char_ngram = concatenate(
-                [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
-                 Attention()(ngram6)])
-            mid_char_ngram = concatenate(
-                [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
-                 Attention()(ngram6)])
-            s_char_ngram = concatenate(
-                [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
-                 Attention()(ngram6)])
-            d_char_ngram = concatenate(
-                [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
-                 Attention()(ngram6)])
+            #big_char_ngram = concatenate(
+            #    [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
+            #     Attention()(ngram6)])
+            #mid_char_ngram = concatenate(
+            #    [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
+            #     Attention()(ngram6)])
+            #s_char_ngram = concatenate(
+            #    [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
+            #     Attention()(ngram6)])
+            #d_char_ngram = concatenate(
+            #    [Attention()(ngram1), Attention()(ngram2), Attention()(ngram3), Attention()(ngram4),
+            #     Attention()(ngram6)])
+            big_char_ngram = Attention()(char_seq)
+            mid_char_ngram = Attention()(char_seq)
+            s_char_ngram = Attention()(char_seq)
+            d_char_ngram = Attention()(char_seq)
 
             big_word_layer = SeqSelfAttention(attention_activation='sigmoid')(word_embd)
             big_word_layer = Attention()(big_word_layer)
