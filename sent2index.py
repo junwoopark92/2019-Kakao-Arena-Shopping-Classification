@@ -13,7 +13,7 @@ from misc import get_logger, Option
 
 
 re_sc = re.compile('[\!@#$%\^&\*\(\)=\[\]\{\}\.,/\?~\+\'"|\_\-:]')
-useless_token = [u'상세', u'설명', u'참조', u'없음', u'상품상세', u'기타']
+useless_token = [u'상세', u'설명', u'참조', u'없음', u'상품상세']
 
 
 def remove_token(name):

@@ -41,7 +41,7 @@ cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
-char_tfidf_dict = joblib.load('../char_tfidf_200.dict')
+char_tfidf_dict = joblib.load('../char_tfidf_4830.dict')
 char_tfidf_size = len(char_tfidf_dict)
 
 word_tfidf_dict = joblib.load('../word_tfidf_200.dict')

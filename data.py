@@ -32,7 +32,7 @@ from sent2index import re_sc, merge_brand_maker
 from misc import get_logger, Option
 opt = Option('./config.json')
 
-char_dict = joblib.load('../char_tfidf_200.dict')
+char_dict = joblib.load('../char_tfidf_4830.dict')
 tfdif_char_size = len(char_dict)
 word_dict = joblib.load('../word_tfidf_200.dict')
 tfdif_word_size = len(word_dict)
