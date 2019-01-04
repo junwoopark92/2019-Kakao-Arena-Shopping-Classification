@@ -90,7 +90,7 @@ class Word2Vec:
             if right == limit:
                 left = 0
 
-    def train(self, data_root, out_dir):
+    def train(self, data_root, out_dir, resume=False):
         data_path = os.path.join(data_root, 'data.h5py')
         dev_data_path = os.path.join('./data/dev', 'data.h5py')
         meta_path = os.path.join(data_root, 'meta')
@@ -113,7 +113,7 @@ class Word2Vec:
         self.logger.info('# of train dev samples: %s' % train_dev['bcate'].shape[0])
         self.logger.info('# of dev samples: %s' % dev['bcate'].shape[0])
 
-        model = MultiTaskAttnWord2vec()
+        model = MultiTaskAttnWord2vec(pretrain=resume)
         w2v_model, val_w2v_model = model.get_word2vec_model()
         c2v_model, val_c2v_model = model.get_char2vec_model()
 
