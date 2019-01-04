@@ -164,7 +164,7 @@ class Classifier():
                                          verbose=1,)
         self.write_prediction_result(test, pred_y, meta, out_path, readable=readable, istrain=istrain)
 
-    def train(self, data_root, out_dir, pretrain, resume=False):
+    def train(self, data_root, out_dir, pretrain, trainall, resume=False):
         data_path = os.path.join(data_root, 'data.h5py')
         meta_path = os.path.join(data_root, 'meta')
         data = h5py.File(data_path, 'r')
@@ -210,7 +210,7 @@ class Classifier():
         self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
 
         total_dev_samples = dev['wuni'].shape[0]
-        if total_dev_samples != 0:
+        if total_dev_samples != 0 and trainall is False:
             dev_gen = self.get_sample_generator(dev, batch_size=opt.batch_size)
             self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
 
@@ -223,11 +223,26 @@ class Classifier():
                                                callbacks=[checkpoint])
             classification_model.load_weights(self.weight_fname)  # loads from checkout point if exists
 
-        else:
+        elif total_dev_samples == 0 and trainall is True:
             classification_model.fit_generator(generator=train_gen,
                                                steps_per_epoch=self.steps_per_epoch,
                                                epochs=opt.num_epochs,
                                                shuffle=True)
+
+        elif total_dev_samples != 0 and trainall is True:
+            dev_gen = self.get_sample_generator(dev, batch_size=opt.batch_size)
+            self.validation_steps = int(np.ceil(total_dev_samples / float(opt.batch_size)))
+
+            for epoch in range(opt.num_epochs):
+                self.logger.info('epoch: %d' % epoch)
+                classification_model.fit_generator(generator=train_gen,
+                                                   steps_per_epoch=self.steps_per_epoch,
+                                                   epochs=1,
+                                                   shuffle=True)
+                classification_model.fit_generator(generator=dev_gen,
+                                                   steps_per_epoch=self.validation_steps,
+                                                   epochs=1,
+                                                   shuffle=True)
 
         open(self.model_fname + '.json', 'w').write(classification_model.to_json())
         classification_model.save(self.model_fname + '.h5')

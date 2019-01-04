@@ -30,7 +30,7 @@ from network import MultiTaskAttnWord2vec
 from sklearn.externals import joblib
 opt = Option('./config.json')
 
-char_tfidf_dict = joblib.load('../char_tfidf_200.dict')
+char_tfidf_dict = joblib.load('../char_tfidf_4830.dict')
 char_tfidf_size = len(char_tfidf_dict)
 
 word_tfidf_dict = joblib.load('../word_tfidf_200.dict')
@@ -104,13 +104,13 @@ class Word2Vec:
         self.num_classes = meta['y_vocab']
 
         train = data['train']
-        dev = data['dev']
+        train_dev = data['dev']
 
-        if dev['wuni'].shape[0] == 0:
-            dev_data = h5py.File(dev_data_path, 'r')
-            dev = dev_data['dev']
+        dev_data = h5py.File(dev_data_path, 'r')
+        dev = dev_data['dev']
 
         self.logger.info('# of train samples: %s' % train['bcate'].shape[0])
+        self.logger.info('# of train dev samples: %s' % train_dev['bcate'].shape[0])
         self.logger.info('# of dev samples: %s' % dev['bcate'].shape[0])
 
         model = MultiTaskAttnWord2vec()
@@ -127,6 +127,7 @@ class Word2Vec:
         char_sim_cb = SimilarityCallback(val_c2v_model, char_tfidf_size, char_tfidf_size, 5, char_reversed_dictionary)
 
         total_train_samples = train['wuni'].shape[0]
+        total_train_dev_samples = train_dev['wuni'].shape[0]
         total_dev_samples = dev['wuni'].shape[0]
 
         w2v_dev_gen = self.get_word2vec_generator(dev, batch_size=opt.batch_size)
@@ -137,10 +138,18 @@ class Word2Vec:
         self.steps_per_epoch = int(np.ceil(total_train_samples / float(opt.batch_size)))
         c2v_train_gen = self.get_char2vec_generator(train, batch_size=opt.batch_size)
 
+        w2v_train_dev_gen = self.get_word2vec_generator(train_dev, batch_size=opt.batch_size)
+        self.train_dev_steps_per_epoch = int(np.ceil(total_train_dev_samples / float(opt.batch_size)))
+        c2v_train_dev_gen = self.get_char2vec_generator(train_dev, batch_size=opt.batch_size)
+
         for i in range(5):
             w2v_model.fit_generator(w2v_train_gen,
                                     epochs=1,
                                     steps_per_epoch=self.steps_per_epoch,
+                                    shuffle=True)
+            w2v_model.fit_generator(w2v_train_dev_gen,
+                                    epochs=1,
+                                    steps_per_epoch=self.train_dev_steps_per_epoch,
                                     shuffle=True)
             w2v_model.fit_generator(w2v_dev_gen,
                                     epochs=1,
@@ -149,11 +158,17 @@ class Word2Vec:
             word_sim_cb.run_sim()
 
         self.logger.info('word2vec model pretrain done')
+        word_embed_matrix = w2v_model.layers[2].get_weights()[0]
+        joblib.dump(word_embed_matrix, '../word_embed_matrix.np')
 
         for i in range(5):
             c2v_model.fit_generator(c2v_train_gen,
                                     epochs=1,
                                     steps_per_epoch=self.steps_per_epoch,
+                                    shuffle=True)
+            c2v_model.fit_generator(c2v_train_dev_gen,
+                                    epochs=1,
+                                    steps_per_epoch=self.train_dev_steps_per_epoch,
                                     shuffle=True)
             c2v_model.fit_generator(c2v_dev_gen,
                                     epochs=1,
@@ -161,11 +176,9 @@ class Word2Vec:
                                     shuffle=True)
             char_sim_cb.run_sim()
 
-        self.logger.info('word2vec model pretrain done')
+        self.logger.info('char2vec model pretrain done')
 
-        word_embed_matrix = w2v_model.layers[2].get_weights()[0]
         char_embed_matrix = c2v_model.layers[2].get_weights()[0]
-        joblib.dump(word_embed_matrix, '../word_embed_matrix.np')
         joblib.dump(char_embed_matrix, '../char_embed_matrix.np')
 
 
