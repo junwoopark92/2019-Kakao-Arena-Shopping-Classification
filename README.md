@@ -1,3 +1,4 @@
+# 대회 후기
 # shopping-classification
 
 `쇼핑몰 상품 카테고리 분류` 대회 참가자에게 제공되는 코드 베이스입니다. 전처리와 간단한 분류기 그리고 평가 코드로 구성되어 있습니다. (코드는 python2.7/3.5+, keras, tensorflow 기준으로 작성되었습니다.)
@@ -35,7 +36,7 @@
     - word2vec, char2vec을 pretrain합니다. model의 embedding layer의 초기값으로 사용됩니다.
     - 상위 디렉토리에 `word_embed_matrix.np, char_embed_matrix.np` 파일이 생성되며 inference시에는 필요하지 않습니다.
     - ./data/train/data.h5py에 dev가 없을시 ./data/dev/data.h5py의 dev를 사용합니다.
-10. `python classifier.py train ./data/train ./model/train True`
+10. `python classifier.py train ./data/train ./model/train True True`
     - `./data/train`에 생성한 데이터셋으로 학습을 진행합니다.
     - 완성된 모델은 `./model/train`에 위치합니다.
     - `True`의 옵션의 경우 pretrain된 word2vec, char2vec initial 값으로 시작합니다.
