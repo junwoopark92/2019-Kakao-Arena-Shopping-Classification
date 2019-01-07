@@ -18,7 +18,6 @@ from itertools import izip
 import fire
 import h5py
 import numpy as np
-import pandas as pd
 
 
 def evaluate(predict_path, data_path, div, y_vocab_path):

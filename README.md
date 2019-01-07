@@ -42,6 +42,14 @@
 11. `python classifier.py predict ./data/train ./model/train ./data/test/ test predict.tsv`
     - `test`로 생성한 평가 데이터에 대해서 예측한 결과를 `predict.tsv`에 저장합니다.
 
+## pretrain 이용하기
+0. 필요한 파일을 다운받습니다.
+    - word_tfidf_200.dict :
+    - char_tfidf_4830.dict :
+    - final_model :
+    
+1. 위 파일들이 다운받으면 실행방법 중 (2, 3, 10, 11) 과정을 생략할수 있습니다. 
+
 
 ## 제출하기
 0. 제출
