@@ -14,8 +14,6 @@
 # limitations under the License.
 
 import os
-import json
-
 import fire
 import h5py
 import numpy as np

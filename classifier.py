@@ -38,7 +38,7 @@ from sklearn.externals import joblib
 
 opt = Option('./config.json')
 cate1 = json.loads(open('../cate1.json').read())
-DEV_DATA_LIST = opt.dev_data_list#['/ssd2/dataset/dev.chunk.01']
+DEV_DATA_LIST = opt.dev_data_list
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
 char_tfidf_dict = joblib.load('../char_tfidf_4830.dict')
@@ -72,11 +72,19 @@ class Classifier():
             inv_cate1[d] = {v: k for k, v in cate1[d].iteritems()}
         return inv_cate1
 
-    def write_prediction_result(self, data, pred_y, meta, out_path, readable, istrain=False):
+    def write_prediction_result(self, data, pred_y, meta, out_path, readable, istrain='train'):
         pid_order = []
-        dev_data_list = DEV_DATA_LIST
-        if istrain:
+
+        if istrain == 'train':
             dev_data_list = TRAIN_DATA_LIST
+        elif istrain == 'dev':
+            dev_data_list = DEV_DATA_LIST
+        elif istrain == 'test':
+            dev_data_list = opt.test_data_list
+        else:
+            self.logger.info('data type only include train, dev, test')
+            raise Exception
+
         for data_path in dev_data_list:
             h = h5py.File(data_path, 'r')['dev']
             pid_order.extend(h['pid'][::])
@@ -149,8 +157,10 @@ class Classifier():
                                            'recall':recall,
                                            'masked_loss_function_d':masked_loss_function_d,
                                            'masked_loss_function_s':masked_loss_function_s})
-        istrain = test_root.split('/')[-2] == 'train'
-        print(istrain, test_root)
+
+        data_type = test_root.split('/')[-2]
+        self.logger.info(test_root, data_type)
+
         test_path = os.path.join(test_root, 'data.h5py')
         test_data = h5py.File(test_path, 'r')
 
@@ -203,7 +213,6 @@ class Classifier():
                                                             'recall':recall,
                                                             'masked_loss_function_d':masked_loss_function_d,
                                                             'masked_loss_function_s':masked_loss_function_s})
-
 
         total_train_samples = train['wuni'].shape[0]
         train_gen = self.get_sample_generator(train, batch_size=opt.batch_size)

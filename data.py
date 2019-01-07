@@ -14,11 +14,9 @@
 # limitations under the License.
 import os
 os.environ['OMP_NUM_THREADS'] = '1'
-import re
 import sys
 import cPickle
 import traceback
-import time
 from multiprocessing import Pool
 
 import tqdm
@@ -99,26 +97,26 @@ class Reader(object):
     def get_class(self, h, i, hirachi):
         if hirachi == 'b':
             b = h['bcateid'][i]
-            m = -1 #h['mcateid'][i]
-            s = -1 #h['scateid'][i]
-            d = -1 #h['dcateid'][i]
+            m = -1
+            s = -1
+            d = -1
             return '%s>%s>%s>%s' % (b, m, s, d)
         if hirachi == 'm':
-            b = -1 #h['bcateid'][i]
+            b = -1
             m = h['mcateid'][i]
-            s = -1 #h['scateid'][i]
-            d = -1 #h['dcateid'][i]
+            s = -1
+            d = -1
             return '%s>%s>%s>%s' % (b, m, s, d)
         if hirachi == 's':
-            b = -1 #h['bcateid'][i]
-            m = -1 #h['mcateid'][i]
+            b = -1
+            m = -1
             s = h['scateid'][i]
-            d = -1 #h['dcateid'][i]
+            d = -1
             return '%s>%s>%s>%s' % (b, m, s, d)
         if hirachi == 'd':
-            b = -1 #h['bcateid'][i]
-            m = -1 #h['mcateid'][i]
-            s = -1 #h['scateid'][i]
+            b = -1
+            m = -1
+            s = -1
             d = h['dcateid'][i]
             return '%s>%s>%s>%s' % (b, m, s, d)
 

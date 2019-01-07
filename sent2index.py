@@ -4,7 +4,6 @@ import re
 import fire
 import h5py
 import pandas as pd
-import numpy as np
 
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.externals import joblib
@@ -111,7 +110,7 @@ class RawData:
             if i > 5:
                 break
 
-        joblib.dump(vectorizer.vocabulary_, '../{}_tfidf_{}_min1.dict'.format(sep, str(max_features)[:3]))
+        joblib.dump(vectorizer.vocabulary_, '../{}_tfidf_{}_min{}.dict'.format(sep, str(max_features)[:3], min_df))
 
     def make_count_vec(self, dirpath, sep='word', max_features=200000, min_df=3):
         df = self.merge_chunks(dirpath)
@@ -131,7 +130,7 @@ class RawData:
             if i > 5:
                 break
 
-        joblib.dump(vectorizer.vocabulary_, '../{}_count_{}.dict'.format(sep, str(max_features)[:3]))
+        joblib.dump(vectorizer.vocabulary_, '../{}_count_{}_min{}.dict'.format(sep, str(max_features)[:3], min_df))
 
 
 if __name__ == '__main__':
