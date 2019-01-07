@@ -77,16 +77,19 @@ class Classifier():
 
         if istrain == 'train':
             dev_data_list = TRAIN_DATA_LIST
+            div = 'dev'
         elif istrain == 'dev':
             dev_data_list = DEV_DATA_LIST
+            div = 'dev'
         elif istrain == 'test':
             dev_data_list = opt.test_data_list
+            div = 'test'
         else:
             self.logger.info('data type only include train, dev, test')
             raise Exception
 
         for data_path in dev_data_list:
-            h = h5py.File(data_path, 'r')['dev']
+            h = h5py.File(data_path, 'r')[div]
             pid_order.extend(h['pid'][::])
 
         y2l_b = {i: s for s, i in meta['y_vocab'][0].iteritems()}

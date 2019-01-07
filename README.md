@@ -78,13 +78,13 @@ kakao baseline이외에 추가적인 library
 	- pip install pandas # BSD 3-Clause License
 	- pip install scikit-learn # BSD license
 
-위의 3 library가 추가적으로 필요합니다. (python 3.6 설치시 기본 lib제외)
+위의 3 library가 추가적으로 필요합니다. (python 2.7 설치시 기본 lib제외)
 ## Model Size
 inference 기준(학습시 중간에 생성되었다가 삭제가능은 제외)
 
-	- word indexing: word_tfidf_200.dict ()
-	- char indexing: char_tfidf_200.dict ()
-	- Model: ./model/train/ ()
+	- word indexing: word_tfidf_200.dict (9.7M)
+	- char indexing: char_tfidf_4830.dict (207K)
+	- Model: ./model/train/ (473M)
 
 ## 기타
 - 코드 베이스를 실행하기 위해서는 데이터셋을 포함해 최소 450G 가량의 공간이 필요합니다.
