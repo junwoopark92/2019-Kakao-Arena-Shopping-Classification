@@ -44,9 +44,9 @@
 
 ## pretrain 이용하기
 0. 필요한 파일을 다운받습니다.
-    - word_tfidf_200.dict :
-    - char_tfidf_4830.dict :
-    - final_model :
+    - word_tfidf_200.dict : https://drive.google.com/open?id=1TWzSmqSAECebJgGc4o5yI3ph5e70--p7
+    - char_tfidf_4830.dict : https://drive.google.com/open?id=10AtKAhXq3Bz2mj8NQQ4agSaKZgFMgSJq
+    - final_model : https://drive.google.com/open?id=1xxfjWgEQHZb2PcDSPhWWnxzAP5kXHF0p
     
 1. 위 파일들이 다운받으면 실행방법 중 (2, 3, 10, 11) 과정을 생략할수 있습니다. 
 
