@@ -1,4 +1,10 @@
-# 대회 후기
+# 대회 결과 및 피드백
+1. tfidf를 통한 indexing이 효과가 most_common보다 좋지 못함
+2. 1을 대회끝나고 암
+ 
+- tfidf indexing: val_score = 1.092, dev_score = 1.068, test_score = 1.070
+- most common indexing: val_score = - , dev_score = ?, test_score = ?
+
 # shopping-classification
 
 `쇼핑몰 상품 카테고리 분류` 대회 참가자에게 제공되는 코드 베이스입니다. 전처리와 간단한 분류기 그리고 평가 코드로 구성되어 있습니다. (코드는 python2.7/3.5+, keras, tensorflow 기준으로 작성되었습니다.)
