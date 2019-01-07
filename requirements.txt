@@ -4,3 +4,6 @@ h5py
 keras
 numpy
 tensorflow
+scikit-learn
+keras-self-attention
+pandas
