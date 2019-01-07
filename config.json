@@ -1,32 +1,35 @@
 {
     "train_data_list": [
-        "../train.chunk.01",
-        "../train.chunk.02",
-        "../train.chunk.03",
-        "../train.chunk.04",
-        "../train.chunk.05",
-        "../train.chunk.06",
-        "../train.chunk.07",
-        "../train.chunk.08",
-        "../train.chunk.09"
+        "/ssd2/dataset/train.chunk.01",
+        "/ssd2/dataset/train.chunk.02",
+        "/ssd2/dataset/train.chunk.03",
+        "/ssd2/dataset/train.chunk.04",
+        "/ssd2/dataset/train.chunk.05",
+        "/ssd2/dataset/train.chunk.06",
+        "/ssd2/dataset/train.chunk.07",
+        "/ssd2/dataset/train.chunk.08",
+        "/ssd2/dataset/train.chunk.09"
     ],
     "dev_data_list": [
-        "../dev.chunk.01"
+        "/ssd2/dataset/dev.chunk.01"
     ],
     "test_data_list": [
-        "../test.chunk.01",
-        "../test.chunk.02"
+        "/ssd2/dataset/test.chunk.01",
+        "/ssd2/dataset/test.chunk.02"
     ],
-    "unigram_hash_size": 100000,
-    "min_word_length": 2,
+    "char_voca_size": 4830,
+    "word_voca_size": 200000,
+    "min_word_length": 1,
     "max_word_length": 31,
-    "max_len": 32,
-    "chunk_size": 20000,
+    "char_max_len": 96,
+    "word_max_len": 32,
+    "chunk_size": 100000,
     "db_chunk_size": 100000,
-    "num_workers": 6,
-    "num_predict_workers": 2,
-    "embd_size": 128,
+    "num_workers": 10,
+    "num_predict_workers": 1,
+    "char_embd_size": 300,
+    "word_embd_size": 172,
     "lr": 1e-4,
-    "num_epochs": 100,
-    "batch_size": 1024
+    "num_epochs": 5,
+    "batch_size": 2048
 }
