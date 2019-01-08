@@ -28,10 +28,10 @@ from network import MultiTaskAttnWord2vec
 from sklearn.externals import joblib
 opt = Option('./config.json')
 
-char_tfidf_dict = joblib.load('../char_tfidf_4830.dict')
+char_tfidf_dict = joblib.load(opt.char_indexer)
 char_tfidf_size = len(char_tfidf_dict)
 
-word_tfidf_dict = joblib.load('../word_tfidf_200.dict')
+word_tfidf_dict = joblib.load(opt.word_indexer)
 word_tfidf_size = len(word_tfidf_dict)
 
 

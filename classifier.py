@@ -41,10 +41,10 @@ cate1 = json.loads(open('../cate1.json').read())
 DEV_DATA_LIST = opt.dev_data_list
 TRAIN_DATA_LIST = ['./data/train/data.h5py']
 
-char_tfidf_dict = joblib.load('../char_tfidf_4830.dict')
+char_tfidf_dict = joblib.load(opt.char_indexer)
 char_tfidf_size = len(char_tfidf_dict)
 
-word_tfidf_dict = joblib.load('../word_tfidf_200.dict')
+word_tfidf_dict = joblib.load(opt.word_indexer)
 word_tfidf_size = len(word_tfidf_dict)
 
 
@@ -122,8 +122,6 @@ class Classifier():
             label_s = y2l_s[y_s]
             label_d = y2l_d[y_d]
 
-            #print(label_b, label_m, label_s, label_d)
-
             b = label_b.split('>')[0]
             m = label_m.split('>')[1]
             s = label_s.split('>')[2]
@@ -162,7 +160,7 @@ class Classifier():
                                            'masked_loss_function_s':masked_loss_function_s})
 
         data_type = test_root.split('/')[-2]
-        self.logger.info(test_root, data_type)
+        self.logger.info('test_root: %s data_type: %s' % (test_root, data_type))
 
         test_path = os.path.join(test_root, 'data.h5py')
         test_data = h5py.File(test_path, 'r')
@@ -175,7 +173,7 @@ class Classifier():
                                          steps=steps,
                                          workers=opt.num_predict_workers,
                                          verbose=1,)
-        self.write_prediction_result(test, pred_y, meta, out_path, readable=readable, istrain=istrain)
+        self.write_prediction_result(test, pred_y, meta, out_path, readable=readable, istrain=data_type)
 
     def train(self, data_root, out_dir, pretrain, trainall, resume=False):
         data_path = os.path.join(data_root, 'data.h5py')
