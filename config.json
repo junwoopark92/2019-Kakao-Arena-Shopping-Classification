@@ -17,6 +17,8 @@
         "/ssd2/dataset/test.chunk.01",
         "/ssd2/dataset/test.chunk.02"
     ],
+    "char_indexer": "../char_tfdif_200_min1.dict",
+    "word_indexer": "../word_tfdif_200_min3.dict",
     "char_voca_size": 4830,
     "word_voca_size": 200000,
     "min_word_length": 1,
