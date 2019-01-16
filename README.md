@@ -48,7 +48,7 @@
     - char_tfidf_4830.dict : https://drive.google.com/open?id=10AtKAhXq3Bz2mj8NQQ4agSaKZgFMgSJq
     - final_model : https://drive.google.com/open?id=1xxfjWgEQHZb2PcDSPhWWnxzAP5kXHF0p
     
-1. 위 파일들 다운받으면 실행방법 중 (1, 2, 9, 10) 과정을 생략할수 있습니다.
+1. 위 파일들을 다운받으면 실행방법 중 (1, 2, 9, 10) 과정을 생략할수 있습니다.
 2. `python classifier.py predict ./data/train ./model/final_model ./data/test/ test predict.tsv`
 
 
